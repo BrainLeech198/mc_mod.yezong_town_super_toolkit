@@ -19,8 +19,51 @@ public final class SelfTestMain {
         testPasswordHasher();
         testAccountStore();
         testRateLimiter();
+        testMigrateService();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testMigrateService() {
+        Assert.section("MigrateService");
+        try {
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-mig");
+            var store = new com.yztc.auth.data.AccountStore(dir.resolve("users.json"));
+            store.load();
+            var existing = new com.yztc.auth.data.Account();
+            existing.algo = "pbkdf2-sha256"; existing.hash = "X"; existing.salt = "Y"; existing.iterations = 1;
+            store.put("existing", existing);
+
+            var legacy = new java.util.LinkedHashMap<String, String>();
+            String good = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+            legacy.put("Alice", good);      // 正常，键需归一化为小写
+            legacy.put("existing", good);   // 与新库重名 → 跳过
+            legacy.put("badhash", "zzzz");  // 非法 hex → 失败
+            legacy.put("", good);           // 空键 → 失败
+            legacy.put("toolongname1234567", good); // 超长 → 失败
+
+            var rep = com.yztc.auth.command.MigrateService.migrate(legacy, store, false, 123L);
+            Assert.eq(rep.total(), 5, "total=5");
+            Assert.eq(rep.imported(), 1, "imported=1");
+            Assert.eq(rep.skipped(), 1, "skipped=1");
+            Assert.eq(rep.failed(), 3, "failed=3");
+            Assert.that(store.contains("alice"), "Alice 归一化为小写 alice 入库");
+            Assert.that(store.get("alice").isLegacy(), "导入记录标为 legacy");
+            Assert.eq(store.get("alice").hash, good, "hash 原样保留");
+
+            // dry-run 不落库
+            var store2 = new com.yztc.auth.data.AccountStore(dir.resolve("u2.json")); store2.load();
+            var rep2 = com.yztc.auth.command.MigrateService.migrate(legacy, store2, true, 1L);
+            Assert.eq(rep2.imported(), 2, "dry-run 对空目标库计数 imported=2（Alice+existing）");
+            Assert.eq(store2.size(), 0, "dry-run 不写库");
+
+            // 幂等：再跑一次全跳过
+            var rep3 = com.yztc.auth.command.MigrateService.migrate(legacy, store, false, 1L);
+            Assert.eq(rep3.imported(), 0, "二次执行 imported=0");
+            Assert.eq(rep3.skipped(), 2, "二次执行 skipped=2");
+        } catch (Exception e) {
+            Assert.that(false, "MigrateService 测试异常: " + e);
+        }
     }
 
     private static void testRateLimiter() {
