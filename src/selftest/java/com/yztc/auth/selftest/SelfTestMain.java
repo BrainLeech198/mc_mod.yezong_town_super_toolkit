@@ -39,6 +39,14 @@ public final class SelfTestMain {
         testFlashCadence();
         testModsToml();
         testWelcome();
+        testPasswordStrength();
+        testAuditLog();
+        testMailStore();
+        testLastSeenStore();
+        testAuthPure();
+        testTabHider();
+        testLocationPure();
+        testStatusRender();
 
         System.exit(Assert.summaryAndExit());
     }
@@ -282,6 +290,183 @@ public final class SelfTestMain {
         var contents = (net.minecraft.network.chat.contents.TranslatableContents) s.getContents();
         Assert.eq(contents.getKey(), "yztauth.msg.welcome.sub", "欢迎副标题键正确");
         Assert.that(java.util.Arrays.asList(contents.getArgs()).contains("Alice"), "欢迎副标题带上玩家名");
+
+        var suffixC = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.ui.WelcomeSync.countdownSuffix(123).getContents();
+        Assert.eq(suffixC.getKey(), "yztauth.msg.prompt_countdown", "倒计时后缀键");
+        Assert.that(java.util.Arrays.asList(suffixC.getArgs()).contains(123L), "倒计时带秒数");
+
+        var fj = com.yztc.auth.ui.WelcomeSync.firstJoinMessage("Bob");
+        var fjc = (net.minecraft.network.chat.contents.TranslatableContents) fj.getContents();
+        Assert.eq(fjc.getKey(), "yztauth.msg.first_join_broadcast", "首进广播键");
+        Assert.that(java.util.Arrays.asList(fjc.getArgs()).contains("Bob"), "首进广播带名字");
+
+        var wt = com.yztc.auth.ui.WelcomeSync.resolveWelcomeTitle("自定义标题");
+        Assert.eq(wt.getString(), "自定义标题", "自定义标题生效");
+        Assert.eq(wt.getStyle().getColor().getValue(), gold, "自定义标题仍为金色");
+        var wtDefault = com.yztc.auth.ui.WelcomeSync.resolveWelcomeTitle("");
+        var wtDefaultC = (net.minecraft.network.chat.contents.TranslatableContents) wtDefault.getContents();
+        Assert.eq(wtDefaultC.getKey(), "yztauth.msg.welcome.title", "空配置回退语言键");
+        var ws = com.yztc.auth.ui.WelcomeSync.resolveWelcomeSub("你好 %s", "Amy");
+        Assert.that(ws.getString().contains("Amy"), "自定义副标题替换 %s");
+    }
+
+    private static void testPasswordStrength() {
+        Assert.section("PasswordStrength");
+        Assert.eq(com.yztc.auth.data.PasswordStrength.of("abc").name(), "WEAK", "短字母→弱");
+        Assert.eq(com.yztc.auth.data.PasswordStrength.of("abcdef12").name(), "MEDIUM", "6位两字符类→中");
+        Assert.eq(com.yztc.auth.data.PasswordStrength.of("Abcdef1!x").name(), "STRONG", "8位三字符类→强");
+        Assert.eq(com.yztc.auth.data.PasswordStrength.of("").name(), "WEAK", "空→弱");
+        Assert.eq(com.yztc.auth.data.PasswordStrength.of("aaaaaaaa").name(), "WEAK", "8位单一类→弱");
+        Assert.eq(com.yztc.auth.data.PasswordStrength.of("Ab1!Ab1!Ab1!").name(), "STRONG", "长四类→强");
+    }
+
+    private static void testAuditLog() {
+        Assert.section("AuditLog");
+        String ln = com.yztc.auth.audit.AuditLog.line("2026-10-09 01:02:03", "alice", "1.2.3.4", "LOGIN_FAIL");
+        Assert.eq(ln, "2026-10-09 01:02:03 | alice | 1.2.3.4 | LOGIN_FAIL", "审计行格式");
+        Assert.that(!ln.contains("hunter2"), "审计行不含明文");
+        try {
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-audit");
+            java.nio.file.Path f = dir.resolve("audit.log");
+            var a = new com.yztc.auth.audit.AuditLog(f);
+            a.append(ln);
+            a.append(ln);
+            var lines = java.nio.file.Files.readAllLines(f);
+            Assert.eq(lines.size(), 2, "两次追写两行");
+            Assert.eq(lines.get(0), ln, "首行内容一致");
+        } catch (Exception e) {
+            Assert.that(false, "AuditLog 落盘测试异常: " + e);
+        }
+    }
+
+    private static com.yztc.auth.data.Mail mkMail(String f, String t, String txt, boolean pub, long at) {
+        var m = new com.yztc.auth.data.Mail();
+        m.from = f; m.to = t; m.text = txt; m.isPublic = pub; m.createdAt = at;
+        return m;
+    }
+
+    private static void testMailStore() {
+        Assert.section("MailStore");
+        Assert.that(com.yztc.auth.data.MailStore.canReceive(19, 20), "未满可收");
+        Assert.that(!com.yztc.auth.data.MailStore.canReceive(20, 20), "满则拒收");
+        Assert.that(!com.yztc.auth.data.MailStore.expired(1000, 1000 + 30L * 86400_000 - 1, 30), "差 1ms 未过期");
+        Assert.that(com.yztc.auth.data.MailStore.expired(1000, 1000 + 30L * 86400_000, 30), "到期即过期");
+        var m = new com.yztc.auth.data.Mail();
+        m.from = "alice"; m.to = "bob"; m.isPublic = false;
+        Assert.that(com.yztc.auth.data.MailStore.canDelete(m, "bob", false), "收件人可删私信");
+        Assert.that(com.yztc.auth.data.MailStore.canDelete(m, "alice", false), "发件人可删私信");
+        Assert.that(!com.yztc.auth.data.MailStore.canDelete(m, "carol", false), "第三者不可删私信");
+        Assert.that(com.yztc.auth.data.MailStore.canDelete(m, "carol", true), "管理员可删");
+        var pub = new com.yztc.auth.data.Mail(); pub.from = "alice"; pub.isPublic = true;
+        Assert.that(com.yztc.auth.data.MailStore.canDelete(pub, "alice", false), "作者可删公开");
+        Assert.that(!com.yztc.auth.data.MailStore.canDelete(pub, "bob", false), "非作者不可删公开");
+        try {
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-mail");
+            long now = System.currentTimeMillis();
+            var s = new com.yztc.auth.data.MailStore(dir.resolve("mail.json"));
+            s.load();
+            String id1 = s.add(mkMail("alice", "bob", "你好", false, now));
+            s.add(mkMail("alice", "", "公告一条", true, now + 1));
+            s.add(mkMail("alice", "bob", "陈年私信", false, now - 31L * 86400_000));
+            s.pruneExpired(now);
+            Assert.eq(s.inboxFor("bob").size(), 1, "超期私信被清理，bob 收件箱 1 条");
+            Assert.eq(s.unreadFor("bob"), 1, "未读 1");
+            s.markRead(id1);
+            Assert.eq(s.unreadFor("bob"), 0, "标记后未读 0");
+            Assert.eq(s.board().size(), 1, "公开板 1 条");
+            Assert.that(s.board().get(0).isPublic, "公开板条目为 public");
+            s.save();
+            var s2 = new com.yztc.auth.data.MailStore(dir.resolve("mail.json")); s2.load();
+            Assert.eq(s2.all().size(), 2, "重载 2 条");
+            Assert.that(s2.remove(id1), "删除成功");
+            Assert.that(!s2.remove("nosuch"), "删不存在返回 false");
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            var s3 = new com.yztc.auth.data.MailStore(dir.resolve("m3.json")); s3.load();
+            for (int i = 0; i < 200; i++) ids.add(s3.add(mkMail("a", "b", "x", false, now)));
+            Assert.eq(ids.size(), 200, "200 条 id 全唯一");
+        } catch (Exception e) {
+            Assert.that(false, "MailStore 测试异常: " + e);
+        }
+    }
+
+    private static void testLastSeenStore() {
+        Assert.section("LastSeenStore");
+        try {
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-ls");
+            var f = dir.resolve("lastseen.json");
+            var s = new com.yztc.auth.data.LastSeenStore(f);
+            s.load();
+            Assert.that(s.get("alice") == null, "初始无记录");
+            var a = new com.yztc.auth.data.LastSeen();
+            a.name = "Alice"; a.dimension = "minecraft:overworld"; a.x = 1.5; a.y = 64; a.z = -3.5;
+            a.yaw = 90; a.pitch = 10; a.at = 111L;
+            s.put(a);
+            Assert.eq(s.get("alice").dimension, "minecraft:overworld", "小写键可查");
+            s.save();
+            var s2 = new com.yztc.auth.data.LastSeenStore(f); s2.load();
+            Assert.eq(s2.get("alice").x, 1.5, "往返 x");
+            Assert.eq(s2.get("alice").at, 111L, "往返 at");
+            var b = new com.yztc.auth.data.LastSeen();
+            b.name = "alice"; b.dimension = "minecraft:the_nether"; b.x = 9; b.z = 9; b.at = 222L;
+            s2.put(b);
+            Assert.eq(s2.get("alice").dimension, "minecraft:the_nether", "同名覆盖");
+            Assert.eq(s2.size(), 1, "一人一条");
+        } catch (Exception e) {
+            Assert.that(false, "LastSeenStore 测试异常: " + e);
+        }
+    }
+
+    private static void testAuthPure() {
+        Assert.section("AuthManager 纯逻辑");
+        Assert.eq(com.yztc.auth.auth.AuthManager.remainingAttempts(0, 4), 4, "未失败剩 4");
+        Assert.eq(com.yztc.auth.auth.AuthManager.remainingAttempts(3, 4), 1, "失败 3 剩 1");
+        Assert.eq(com.yztc.auth.auth.AuthManager.remainingAttempts(4, 4), 0, "达阈值剩 0");
+        Assert.eq(com.yztc.auth.auth.AuthManager.remainingAttempts(9, 4), 0, "不返回负数");
+        Assert.that(!com.yztc.auth.auth.AuthManager.afkExpired(1000, 99999, 60000, false), "关闭时永不触发");
+        Assert.that(!com.yztc.auth.auth.AuthManager.afkExpired(1000, 60099, 60000, true), "差 1ms 不触发");
+        Assert.that(com.yztc.auth.auth.AuthManager.afkExpired(1000, 61000, 60000, true), "到点触发");
+        Assert.that(!com.yztc.auth.auth.AuthManager.ipChanged(null, "1.1.1.1"), "首次登录不算变更");
+        Assert.that(!com.yztc.auth.auth.AuthManager.ipChanged("1.1.1.1", "1.1.1.1"), "同 IP 不算");
+        Assert.that(com.yztc.auth.auth.AuthManager.ipChanged("1.1.1.1", "2.2.2.2"), "换 IP 算变更");
+    }
+
+    private static void testTabHider() {
+        Assert.section("TabHider.hiddenFor");
+        var a = java.util.UUID.randomUUID(); var b = java.util.UUID.randomUUID();
+        var pending = java.util.List.of(a, b);
+        Assert.eq(com.yztc.auth.ui.TabHider.hiddenFor(pending, a), java.util.List.of(b), "自己不在隐藏列表");
+        Assert.eq(com.yztc.auth.ui.TabHider.hiddenFor(pending, java.util.UUID.randomUUID()).size(), 2, "旁观者隐藏两人");
+        Assert.eq(com.yztc.auth.ui.TabHider.hiddenFor(java.util.List.of(), a).size(), 0, "无 pending 则空");
+    }
+
+    private static void testLocationPure() {
+        Assert.section("LocationCommand");
+        Assert.that(!com.yztc.auth.command.LocationCommand.canTp(false, true), "控制台不可 tp");
+        Assert.that(!com.yztc.auth.command.LocationCommand.canTp(true, false), "非管理不可 tp");
+        Assert.that(com.yztc.auth.command.LocationCommand.canTp(true, true), "管理玩家可 tp");
+        var s = new com.yztc.auth.data.LastSeen();
+        s.name = "alice"; s.dimension = "minecraft:overworld"; s.x = 1.5; s.y = 64; s.z = -2.5; s.at = 0;
+        var tc = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.command.LocationCommand.whereText(s).getContents();
+        Assert.eq(tc.getKey(), "yztauth.msg.where_result", "where 文本键");
+        Assert.that(java.util.Arrays.asList(tc.getArgs()).contains("1.5"), "where 文本含坐标");
+        var none = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.command.LocationCommand.whereText(null).getContents();
+        Assert.eq(none.getKey(), "yztauth.msg.where_none", "无记录用 where_none");
+    }
+
+    private static void testStatusRender() {
+        Assert.section("StatusCommand");
+        var c = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.command.StatusCommand.render(new String[]{"alice", "bob"}, 5).getContents();
+        Assert.eq(c.getKey(), "yztauth.msg.status_line", "状态键");
+        var args = java.util.Arrays.asList(c.getArgs());
+        Assert.that(args.contains("5"), "含在线人数");
+        Assert.that(args.stream().anyMatch(a -> String.valueOf(a).contains("alice")), "含未登录名单");
+        var c2 = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.command.StatusCommand.render(new String[0], 0).getContents();
+        Assert.eq(c2.getKey(), "yztauth.msg.status_line", "空名单也给文本");
     }
 
     private static void testBookGuide() {
@@ -427,6 +612,14 @@ public final class SelfTestMain {
         Assert.eq(com.yztc.auth.config.AuthConfig.ipRateLimitCount(), 12, "ipRateLimitCount 默认 12");
         Assert.eq(com.yztc.auth.config.AuthConfig.loginTimeoutSeconds(), 450, "loginTimeoutSeconds 默认 450");
         Assert.eq(com.yztc.auth.config.AuthConfig.logoutMode(), "disconnect", "logoutMode 默认 disconnect");
+        Assert.eq(com.yztc.auth.config.AuthConfig.mailMaxPerPlayer(), 20, "mailMaxPerPlayer 默认 20");
+        Assert.eq(com.yztc.auth.config.AuthConfig.mailExpireDays(), 30, "mailExpireDays 默认 30");
+        Assert.that(com.yztc.auth.config.AuthConfig.auditLogEnabled(), "auditLogEnabled 默认 true");
+        Assert.that(com.yztc.auth.config.AuthConfig.notifyAdminOnLogin(), "notifyAdminOnLogin 默认 true");
+        Assert.that(!com.yztc.auth.config.AuthConfig.afkLogoutEnabled(), "afkLogoutEnabled 默认 false");
+        Assert.eq(com.yztc.auth.config.AuthConfig.afkLogoutSeconds(), 600, "afkLogoutSeconds 默认 600");
+        Assert.eq(com.yztc.auth.config.AuthConfig.welcomeTitleText(), "", "welcomeTitleText 默认空");
+        Assert.eq(com.yztc.auth.config.AuthConfig.welcomeSubText(), "", "welcomeSubText 默认空");
     }
 
     private static void testGateManager() {

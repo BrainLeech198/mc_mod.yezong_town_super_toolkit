@@ -2,9 +2,11 @@ package com.yztc.auth.ui;
 
 import com.yztc.auth.auth.AuthManager;
 import com.yztc.auth.auth.PendingState;
+import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.lang.Lang;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Locale;
@@ -22,13 +24,13 @@ public final class WelcomeSync {
     }
 
     /** 副标题（登录/注册路径）：黄色。registered=true 引导登录，否则引导注册。 */
-    public static Component sub(boolean registered) {
+    public static MutableComponent sub(boolean registered) {
         return Lang.msg(registered ? "prompt_login.sub" : "prompt_register.sub")
                 .copy().withStyle(ChatFormatting.YELLOW);
     }
 
     /** 副标题（闸门路径）：黄色。 */
-    public static Component gateSub() {
+    public static MutableComponent gateSub() {
         return Lang.msg("prompt_gate.sub").copy().withStyle(ChatFormatting.YELLOW);
     }
 
@@ -59,6 +61,28 @@ public final class WelcomeSync {
         return Lang.msg("welcome.sub", name).copy().withStyle(ChatFormatting.YELLOW);
     }
 
+    /** 倒计时后缀（如「（剩余 123 秒）」），不上色，交由调用方拼接。 */
+    public static Component countdownSuffix(long secs) {
+        return Lang.msg("prompt_countdown", secs);
+    }
+
+    /** 首次进服的全服广播文本。 */
+    public static Component firstJoinMessage(String name) {
+        return Lang.msg("first_join_broadcast", name);
+    }
+
+    /** 欢迎标题：空配置回退语言键，否则用自定义文字（仍为金色加粗）。 */
+    public static Component resolveWelcomeTitle(String cfg) {
+        if (cfg == null || cfg.isBlank()) return welcomeTitle();
+        return Component.literal(cfg).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD);
+    }
+
+    /** 欢迎副标题：空配置回退语言键，否则用自定义文字（%s 替换为玩家名，仍为黄色）。 */
+    public static Component resolveWelcomeSub(String cfg, String name) {
+        if (cfg == null || cfg.isBlank()) return welcomeSub(name);
+        return Component.literal(cfg.replace("%s", name)).withStyle(ChatFormatting.YELLOW);
+    }
+
     // ---- 发送器 ----
 
     /** 已注册→引导登录；未注册→引导注册（按钮自动填入对应命令）。 */
@@ -73,20 +97,22 @@ public final class WelcomeSync {
         ChatPrompt.send(p, Lang.msg(buttonKey(true, false)), commandFor(true, false));
     }
 
-    /** 登录/注册成功后：欢迎语（金标题 + 黄副标题）。 */
+    /** 登录/注册成功后：欢迎语（金标题 + 黄副标题，可用配置覆盖文案）。 */
     public static void welcome(ServerPlayer p) {
-        TitleSink.send(p, welcomeTitle(), welcomeSub(p.getGameProfile().getName()));
+        String name = p.getGameProfile().getName();
+        TitleSink.send(p, resolveWelcomeTitle(AuthConfig.welcomeTitleText()),
+                resolveWelcomeSub(AuthConfig.welcomeSubText(), name));
     }
 
-    /** 闪烁重发：只重发标题/副标题，不刷聊天栏，避免刷屏。 */
-    public static void resendTitle(ServerPlayer p, AuthManager auth) {
+    /** 闪烁重发：只重发标题/副标题，不刷聊天栏，避免刷屏。未认证时副标题附倒计时。 */
+    public static void resendTitle(ServerPlayer p, AuthManager auth, long remainSec) {
         PendingState st = PendingState.ALL.get(p.getUUID());
         if (st == null) return;
         if (!st.gatePassed) {
-            TitleSink.send(p, title(true), gateSub());
+            TitleSink.send(p, title(true), gateSub().append(countdownSuffix(remainSec)));
         } else {
             boolean registered = isRegistered(p, auth);
-            TitleSink.send(p, title(false), sub(registered));
+            TitleSink.send(p, title(false), sub(registered).append(countdownSuffix(remainSec)));
         }
     }
 

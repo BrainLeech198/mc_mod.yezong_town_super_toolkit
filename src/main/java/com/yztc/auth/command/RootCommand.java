@@ -81,6 +81,8 @@ public final class RootCommand {
 
         // 管理/控制台子指令在 Task 14 追加
         AdminCommands.attach(root, auth, gate);
+        LocationCommand.attach(root, auth);
+        StatusCommand.attach(root, auth);
 
         d.register(root);
     }

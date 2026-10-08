@@ -27,6 +27,14 @@ public final class AuthConfig {
     public static int logoutThrottleSeconds()      { return V.logoutThrottleSeconds.get(); }
     public static int pbkdf2Iterations()           { return V.pbkdf2Iterations.get(); }
     public static String legacyUsersFile()         { return V.legacyUsersFile.get(); }
+    public static int mailMaxPerPlayer()           { return V.mailMaxPerPlayer.get(); }
+    public static int mailExpireDays()             { return V.mailExpireDays.get(); }
+    public static boolean auditLogEnabled()        { return V.auditLogEnabled.get(); }
+    public static boolean notifyAdminOnLogin()     { return V.notifyAdminOnLogin.get(); }
+    public static boolean afkLogoutEnabled()       { return V.afkLogoutEnabled.get(); }
+    public static int afkLogoutSeconds()           { return V.afkLogoutSeconds.get(); }
+    public static String welcomeTitleText()        { return V.welcomeTitleText.get(); }
+    public static String welcomeSubText()          { return V.welcomeSubText.get(); }
 
     private static final class Values {
         final ForgeConfigSpec.IntValue minPasswordLength;
@@ -41,6 +49,14 @@ public final class AuthConfig {
         final ForgeConfigSpec.IntValue logoutThrottleSeconds;
         final ForgeConfigSpec.IntValue pbkdf2Iterations;
         final ForgeConfigSpec.ConfigValue<String> legacyUsersFile;
+        final ForgeConfigSpec.IntValue mailMaxPerPlayer;
+        final ForgeConfigSpec.IntValue mailExpireDays;
+        final ForgeConfigSpec.BooleanValue auditLogEnabled;
+        final ForgeConfigSpec.BooleanValue notifyAdminOnLogin;
+        final ForgeConfigSpec.BooleanValue afkLogoutEnabled;
+        final ForgeConfigSpec.IntValue afkLogoutSeconds;
+        final ForgeConfigSpec.ConfigValue<String> welcomeTitleText;
+        final ForgeConfigSpec.ConfigValue<String> welcomeSubText;
 
         Values(ForgeConfigSpec.Builder b) {
             b.comment("yztAuth 服务器配置").push("security");
@@ -65,6 +81,17 @@ public final class AuthConfig {
 
             b.comment("迁移").push("migrate");
             legacyUsersFile = b.comment("SAuth 用户文件路径").define("legacyUsersFile", "config/serverreg/users.json");
+            b.pop();
+
+            b.comment("扩展").push("feature");
+            mailMaxPerPlayer   = b.comment("每人私信上限").defineInRange("mailMaxPerPlayer", 20, 1, 1000);
+            mailExpireDays     = b.comment("留言超期天数").defineInRange("mailExpireDays", 30, 1, 3650);
+            auditLogEnabled    = b.comment("写审计日志 logs/yztauth-audit.log").define("auditLogEnabled", true);
+            notifyAdminOnLogin = b.comment("登录通知在线管理员").define("notifyAdminOnLogin", true);
+            afkLogoutEnabled   = b.comment("AFK 自动登出（默认关）").define("afkLogoutEnabled", false);
+            afkLogoutSeconds   = b.comment("AFK 判定秒数").defineInRange("afkLogoutSeconds", 600, 30, 86400);
+            welcomeTitleText   = b.comment("自定义欢迎标题（空=用语言键）").define("welcomeTitleText", "");
+            welcomeSubText     = b.comment("自定义欢迎副标题（空=用语言键，%s=玩家名）").define("welcomeSubText", "");
             b.pop();
         }
     }

@@ -56,6 +56,21 @@ public final class AuthManager {
         return nowMs - lastMs >= intervalMs;
     }
 
+    /** 纯逻辑：还可尝试次数（不为负）。 */
+    public static int remainingAttempts(int failed, int max) {
+        return Math.max(0, max - failed);
+    }
+
+    /** 纯逻辑：AFK 是否超时（功能关闭时恒 false）。 */
+    public static boolean afkExpired(long lastActivity, long now, long limitMs, boolean enabled) {
+        return enabled && now - lastActivity >= limitMs;
+    }
+
+    /** 纯逻辑：登录 IP 是否变更（首次登录 lastIp 为空，不算变更）。 */
+    public static boolean ipChanged(String lastIp, String currentIp) {
+        return lastIp != null && !lastIp.equals(currentIp);
+    }
+
     /** 该玩家此刻是否必须先过闸。 */
     public boolean gateRequired(ServerPlayer p) {
         PendingState st = PendingState.ALL.get(p.getUUID());
@@ -113,7 +128,8 @@ public final class AuthManager {
         }
         if (flashDue(now, st.lastTitleMs, TITLE_FLASH_INTERVAL_MS)) {
             st.lastTitleMs = now;
-            WelcomeSync.resendTitle(p, this);
+            long remainSec = Math.max(0, (limit - (now - st.joinedAt)) / 1000L);
+            WelcomeSync.resendTitle(p, this, remainSec);
         }
     }
 
