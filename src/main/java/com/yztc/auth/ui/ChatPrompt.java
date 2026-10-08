@@ -1,5 +1,6 @@
 package com.yztc.auth.ui;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -9,11 +10,13 @@ import net.minecraft.server.level.ServerPlayer;
 public final class ChatPrompt {
     private ChatPrompt() {}
 
-    /** 纯构造：给一段文本套上 suggest_command 点击与 show_text 悬停。 */
+    /** 纯构造：给副本套上绿色下划线 + suggest_command 点击 + show_text 悬停（不改动原组件）。 */
     public static Component button(Component label, String commandToSuggest) {
-        return label.copy().withStyle(style -> style
-                .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, commandToSuggest))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(commandToSuggest))));
+        return label.copy()
+                .withStyle(ChatFormatting.GREEN, ChatFormatting.UNDERLINE)
+                .withStyle(style -> style
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, commandToSuggest))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(commandToSuggest))));
     }
 
     public static void send(ServerPlayer p, Component label, String commandToSuggest) {

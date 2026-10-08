@@ -23,6 +23,9 @@ public final class AuthManager {
     private static final Base64.Encoder ENC = Base64.getEncoder();
     private static final Base64.Decoder DEC = Base64.getDecoder();
 
+    /** 未登录提示标题的重发间隔（毫秒），配合短动画形成持续闪烁。 */
+    public static final long TITLE_FLASH_INTERVAL_MS = 1500L;
+
     private final AccountStore store;
     private final GateManager gate;
     private final Set<UUID> authenticated = new HashSet<>();
@@ -46,6 +49,11 @@ public final class AuthManager {
      */
     public static boolean gateRequired(boolean gateSet, boolean authenticated, boolean gatePassed) {
         return gateSet && !authenticated && !gatePassed;
+    }
+
+    /** 纯逻辑：距上次重发是否已到闪烁间隔。 */
+    public static boolean flashDue(long nowMs, long lastMs, long intervalMs) {
+        return nowMs - lastMs >= intervalMs;
     }
 
     /** 该玩家此刻是否必须先过闸。 */
@@ -96,10 +104,16 @@ public final class AuthManager {
     public void onTick(ServerPlayer p) {
         PendingState st = PendingState.ALL.get(p.getUUID());
         if (st == null) return;
+        long now = System.currentTimeMillis();
         long limit = AuthConfig.loginTimeoutSeconds() * 1000L;
-        if (System.currentTimeMillis() - st.joinedAt > limit) {
+        if (now - st.joinedAt > limit) {
             p.connection.disconnect(Lang.msg("timeout"));
             PendingState.ALL.remove(p.getUUID());
+            return;
+        }
+        if (flashDue(now, st.lastTitleMs, TITLE_FLASH_INTERVAL_MS)) {
+            st.lastTitleMs = now;
+            WelcomeSync.resendTitle(p, this);
         }
     }
 
@@ -244,7 +258,7 @@ public final class AuthManager {
         authenticated.add(p.getUUID());
         PendingState.ALL.remove(p.getUUID());
         LockdownSync.authenticate(p);
-        WelcomeSync.clearTitles(p);
+        WelcomeSync.welcome(p);
     }
 
     public String resolveIp(ServerPlayer p) {

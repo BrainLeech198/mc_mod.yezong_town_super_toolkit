@@ -34,6 +34,11 @@ public final class SelfTestMain {
         testGateAttempt();
         testLogoutThrottle();
         testGateChangePolicy();
+        testAllowedWhileLocked();
+        testPromptStyle();
+        testFlashCadence();
+        testModsToml();
+        testWelcome();
 
         System.exit(Assert.summaryAndExit());
     }
@@ -165,6 +170,118 @@ public final class SelfTestMain {
         Assert.eq(style.getHoverEvent().getAction(),
                 net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT, "hoverEvent 动作为 show_text");
         Assert.eq(btn.getString(), "▶ 点这里登录", "按钮文本保留");
+        Assert.eq(style.getColor().getValue(),
+                net.minecraft.ChatFormatting.GREEN.getColor().intValue(), "按钮为绿色");
+        Assert.that(style.isUnderlined(), "按钮带下划线");
+
+        var plain = net.minecraft.network.chat.Component.literal("x");
+        var styled = com.yztc.auth.ui.ChatPrompt.button(plain, "/yztauth help");
+        Assert.that(plain.getStyle().getClickEvent() == null, "原组件不被就地修改（copy 后再套样式）");
+        Assert.that(styled.getStyle().getClickEvent() != null, "样式只作用于副本");
+    }
+
+    // 未登录玩家只放行认证入口指令，其余一律拦截（安全漏洞修复）
+    private static void testAllowedWhileLocked() {
+        Assert.section("LockdownHandler.allowedWhileLocked");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/login secret"), "裸 /login 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/register secret"), "裸 /register 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("login secret"), "无斜杠 login 也放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth gate secret"), "/yztauth gate 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth login secret"), "/yztauth login 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth register secret"), "/yztauth register 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth help"), "/yztauth help 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("minecraft:login secret"), "带命名空间的 login 放行");
+
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth logout"), "登出被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth changepassword a b"), "改密被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth admin"), "管理面板被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth serverpassword set x"), "改闸门被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth op delete alice"), "管理操作被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/gamemode creative"), "原版指令被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/op alice"), "OP 被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/say hi"), "聊天类指令被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth"), "裸 /yztauth 被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked(""), "空串被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("   "), "纯空白被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked(null), "null 被拦");
+    }
+
+    // 提示样式：金加粗标题 / 黄副标题 / 绿下划线可点按钮，且聊天栏按钮文本 != 副标题
+    private static void testPromptStyle() {
+        Assert.section("WelcomeSync 提示样式");
+        int gold = net.minecraft.ChatFormatting.GOLD.getColor();
+        int yellow = net.minecraft.ChatFormatting.YELLOW.getColor();
+        int green = net.minecraft.ChatFormatting.GREEN.getColor();
+
+        var loginTitle = com.yztc.auth.ui.WelcomeSync.title(false);
+        Assert.eq(loginTitle.getStyle().getColor().getValue(), gold, "登录标题为金色");
+        Assert.that(loginTitle.getStyle().isBold(), "登录标题加粗");
+        var gateTitle = com.yztc.auth.ui.WelcomeSync.title(true);
+        Assert.eq(gateTitle.getStyle().getColor().getValue(), gold, "闸门标题为金色");
+
+        var loginSub = com.yztc.auth.ui.WelcomeSync.sub(true);
+        Assert.eq(loginSub.getStyle().getColor().getValue(), yellow, "登录副标题为黄色");
+        var regSub = com.yztc.auth.ui.WelcomeSync.sub(false);
+        Assert.eq(regSub.getStyle().getColor().getValue(), yellow, "注册副标题为黄色");
+        var gateSub = com.yztc.auth.ui.WelcomeSync.gateSub();
+        Assert.eq(gateSub.getStyle().getColor().getValue(), yellow, "闸门副标题为黄色");
+
+        var loginBtn = com.yztc.auth.ui.WelcomeSync.button(false, true);
+        Assert.eq(loginBtn.getStyle().getColor().getValue(), green, "登录按钮为绿色");
+        Assert.that(loginBtn.getStyle().isUnderlined(), "登录按钮带下划线");
+        Assert.that(loginBtn.getStyle().getClickEvent() != null, "登录按钮可点击");
+        Assert.eq(loginBtn.getStyle().getClickEvent().getValue(), "/yztauth login ", "登录按钮建议命令正确");
+
+        var regBtn = com.yztc.auth.ui.WelcomeSync.button(false, false);
+        Assert.eq(regBtn.getStyle().getClickEvent().getValue(), "/yztauth register ", "注册按钮建议命令正确");
+        var gateBtn = com.yztc.auth.ui.WelcomeSync.button(true, false);
+        Assert.eq(gateBtn.getStyle().getClickEvent().getValue(), "/yztauth gate ", "闸门按钮建议命令正确");
+
+        // 修复点：聊天栏按钮文本必须与副标题不同（此前副标题被错当聊天栏内容）
+        Assert.that(!loginBtn.getString().equals(loginSub.getString()),
+                "登录聊天栏按钮文本 != 副标题文本");
+        Assert.that(!gateBtn.getString().equals(gateSub.getString()),
+                "闸门聊天栏按钮文本 != 副标题文本");
+    }
+
+    // 标题持续闪烁：按固定间隔重发，间隔外不重发
+    private static void testFlashCadence() {
+        Assert.section("AuthManager.flashDue / 闪烁间隔");
+        long iv = com.yztc.auth.auth.AuthManager.TITLE_FLASH_INTERVAL_MS;
+        Assert.that(iv > 0 && iv <= 3000, "闪烁间隔在合理区间（实得 " + iv + "ms）");
+        Assert.that(!com.yztc.auth.auth.AuthManager.flashDue(1000, 1000, iv), "刚到不闪");
+        Assert.that(!com.yztc.auth.auth.AuthManager.flashDue(1000 + iv - 1, 1000, iv), "差 1ms 不闪");
+        Assert.that(com.yztc.auth.auth.AuthManager.flashDue(1000 + iv, 1000, iv), "到达间隔即闪");
+        Assert.that(com.yztc.auth.auth.AuthManager.flashDue(1000 + iv * 3, 1000, iv), "超过间隔仍闪");
+    }
+
+    // mods.toml 必须显式要求客户端装有本 mod（版本匹配），否则裸指令/翻译会缺失
+    private static void testModsToml() {
+        Assert.section("mods.toml displayTest");
+        try {
+            java.nio.file.Path toml = java.nio.file.Path.of("src", "main", "resources", "META-INF", "mods.toml");
+            Assert.that(java.nio.file.Files.isRegularFile(toml), "mods.toml 存在：" + toml.toAbsolutePath());
+            String text = java.nio.file.Files.readString(toml, java.nio.charset.StandardCharsets.UTF_8);
+            Assert.that(text.contains("displayTest=\"MATCH_VERSION\""),
+                    "mods.toml 显式声明 displayTest=\"MATCH_VERSION\"（客户端缺少本 mod 即拒绝登入）");
+        } catch (Exception e) {
+            Assert.that(false, "mods.toml 测试异常: " + e);
+        }
+    }
+
+    // 登录成功后要有欢迎语（金标题 + 黄副标题）
+    private static void testWelcome() {
+        Assert.section("WelcomeSync 欢迎语");
+        int gold = net.minecraft.ChatFormatting.GOLD.getColor();
+        int yellow = net.minecraft.ChatFormatting.YELLOW.getColor();
+        var t = com.yztc.auth.ui.WelcomeSync.welcomeTitle();
+        Assert.eq(t.getStyle().getColor().getValue(), gold, "欢迎标题为金色");
+        Assert.that(t.getStyle().isBold(), "欢迎标题加粗");
+        var s = com.yztc.auth.ui.WelcomeSync.welcomeSub("Alice");
+        Assert.eq(s.getStyle().getColor().getValue(), yellow, "欢迎副标题为黄色");
+        var contents = (net.minecraft.network.chat.contents.TranslatableContents) s.getContents();
+        Assert.eq(contents.getKey(), "yztauth.msg.welcome.sub", "欢迎副标题键正确");
+        Assert.that(java.util.Arrays.asList(contents.getArgs()).contains("Alice"), "欢迎副标题带上玩家名");
     }
 
     private static void testBookGuide() {

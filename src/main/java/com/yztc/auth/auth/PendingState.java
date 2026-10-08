@@ -15,6 +15,8 @@ public final class PendingState {
     public final long joinedAt;
     public int loginFails = 0;
     public boolean gatePassed = false;
+    /** 上次重发标题的时刻，用于闪烁节流。 */
+    public long lastTitleMs;
 
     public PendingState(ServerPlayer player) {
         this.player = player;
@@ -24,5 +26,6 @@ public final class PendingState {
         this.originYaw = player.getYRot();
         this.originPitch = player.getXRot();
         this.joinedAt = System.currentTimeMillis();
+        this.lastTitleMs = this.joinedAt;
     }
 }
