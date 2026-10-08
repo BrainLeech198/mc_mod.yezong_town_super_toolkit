@@ -16,13 +16,75 @@ public final class SelfTestMain {
         Assert.section("自测框架自检");
         Assert.that(true, "自测框架可运行");
 
+        loadDefaultConfig();
+        testConfig();
         testPasswordHasher();
         testAccountStore();
         testRateLimiter();
         testMigrateService();
         testLang();
+        testGateManager();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    // Forge 未加载时 AuthConfig 取值抛 IllegalStateException；自测内手工装载一份默认配置
+    private static void loadDefaultConfig() {
+        com.electronwill.nightconfig.core.CommentedConfig cfg =
+                com.electronwill.nightconfig.core.CommentedConfig.inMemory();
+        com.yztc.auth.config.AuthConfig.SPEC.correct(cfg);
+        com.yztc.auth.config.AuthConfig.SPEC.setConfig(cfg);
+    }
+
+    private static void testConfig() {
+        Assert.section("AuthConfig");
+        Assert.eq(com.yztc.auth.config.AuthConfig.pbkdf2Iterations(), 120000, "pbkdf2Iterations 默认 120000");
+        Assert.eq(com.yztc.auth.config.AuthConfig.minPasswordLength(), 5, "minPasswordLength 默认 5");
+        Assert.eq(com.yztc.auth.config.AuthConfig.maxLoginAttempts(), 4, "maxLoginAttempts 默认 4");
+        Assert.eq(com.yztc.auth.config.AuthConfig.ipRateLimitCount(), 12, "ipRateLimitCount 默认 12");
+        Assert.eq(com.yztc.auth.config.AuthConfig.loginTimeoutSeconds(), 450, "loginTimeoutSeconds 默认 450");
+        Assert.eq(com.yztc.auth.config.AuthConfig.logoutMode(), "disconnect", "logoutMode 默认 disconnect");
+    }
+
+    private static void testGateManager() {
+        Assert.section("GateManager");
+        try {
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-gate");
+            java.nio.file.Path f = dir.resolve("users.json");
+            var store = new com.yztc.auth.data.AccountStore(f);
+            store.load();
+            var gm = new com.yztc.auth.auth.GateManager(store);
+
+            Assert.that(!gm.isGateSet(), "初始未设闸门");
+            // 未设闸门时 verify 在任何玩家对象被触碰前即返回，故传 null 安全
+            Assert.eq(gm.verify(null, "whatever").name(), "NOT_SET", "未设闸门时 verify=NOT_SET");
+
+            gm.set("s3cret-gate");
+            Assert.that(gm.isGateSet(), "set 后闸门已设");
+            var g = store.getGate();
+            Assert.eq(g.algo, "pbkdf2-sha256", "闸门算法 pbkdf2");
+            Assert.eq(g.iterations, 120000, "闸门迭代数取配置默认");
+            var salt = java.util.Base64.getDecoder().decode(g.salt);
+            var hash = java.util.Base64.getDecoder().decode(g.hash);
+            Assert.eq(salt.length, 16, "闸门盐 16 字节");
+            Assert.eq(hash.length, 32, "闸门哈希 32 字节");
+            Assert.that(com.yztc.auth.security.PasswordHasher.verifyPbkdf2(
+                    "s3cret-gate".toCharArray(), g.iterations, salt, hash), "闸门哈希接受正确密码");
+            Assert.that(!com.yztc.auth.security.PasswordHasher.verifyPbkdf2(
+                    "wrong".toCharArray(), g.iterations, salt, hash), "闸门哈希拒绝错误密码");
+
+            var store2 = new com.yztc.auth.data.AccountStore(f);
+            store2.load();
+            Assert.that(new com.yztc.auth.auth.GateManager(store2).isGateSet(), "闸门落盘后可重载");
+
+            gm.clear();
+            Assert.that(!gm.isGateSet(), "clear 后无闸门");
+            var store3 = new com.yztc.auth.data.AccountStore(f);
+            store3.load();
+            Assert.that(store3.getGate() == null, "清闸门已落盘");
+        } catch (Exception e) {
+            Assert.that(false, "GateManager 测试异常: " + e);
+        }
     }
 
     private static void testLang() {
