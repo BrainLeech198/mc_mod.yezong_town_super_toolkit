@@ -435,6 +435,18 @@ public final class SelfTestMain {
         Assert.that(!com.yztc.auth.auth.AuthManager.ipChanged(null, "1.1.1.1"), "首次登录不算变更");
         Assert.that(!com.yztc.auth.auth.AuthManager.ipChanged("1.1.1.1", "1.1.1.1"), "同 IP 不算");
         Assert.that(com.yztc.auth.auth.AuthManager.ipChanged("1.1.1.1", "2.2.2.2"), "换 IP 算变更");
+        // C2：位置或朝向变化都算“活动”，避免站着不动被误判 AFK
+        double[] snap = {10.0, 64.0, -3.0, 90.0f, 0.0f};
+        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(null, 10, 64, -3, 90, 0), "无快照视为有活动（首次）");
+        Assert.that(!com.yztc.auth.auth.AuthManager.viewChanged(snap, 10, 64, -3, 90, 0), "位置朝向全同不算活动");
+        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(snap, 10.5, 64, -3, 90, 0), "位置移动算活动");
+        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(snap, 10, 64, -3, 120, 0), "仅转向也算活动");
+        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(snap, 10, 64, -3, 90, 15), "仅俯仰也算活动");
+        Assert.that(!com.yztc.auth.auth.AuthManager.viewChanged(snap, 10.005, 64, -3, 90, 0), "微动在阈值内不算");
+        // B4：登出后仍保持连接的模式（lock）必须重新从他人 Tab 隐藏
+        Assert.that(com.yztc.auth.auth.AuthManager.staysConnectedOnLogout("lock"), "lock 模式保持连接");
+        Assert.that(!com.yztc.auth.auth.AuthManager.staysConnectedOnLogout("disconnect"), "disconnect 断开连接");
+        Assert.that(!com.yztc.auth.auth.AuthManager.staysConnectedOnLogout("disconnect-throttle"), "throttle 断开连接");
     }
 
     private static void testTabHider() {

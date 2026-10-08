@@ -83,6 +83,18 @@ public final class AuthManager {
         return lastIp != null && !lastIp.equals(currentIp);
     }
 
+    /** 纯逻辑：以 {x,y,z,yaw,pitch} 快照比较，位置或朝向是否有可见变化（无快照视为有活动）。 */
+    public static boolean viewChanged(double[] last, double x, double y, double z, float yaw, float pitch) {
+        if (last == null) return true;
+        return Math.abs(x - last[0]) > 0.01 || Math.abs(y - last[1]) > 0.01 || Math.abs(z - last[2]) > 0.01
+                || Math.abs(yaw - last[3]) > 1.0 || Math.abs(pitch - last[4]) > 1.0;
+    }
+
+    /** 纯逻辑：该登出模式是否保留连接（回到未登录态，需重新从他人 Tab 隐藏）。 */
+    public static boolean staysConnectedOnLogout(String mode) {
+        return "lock".equals(mode);
+    }
+
     /** 该玩家此刻是否必须先过闸。 */
     public boolean gateRequired(ServerPlayer p) {
         PendingState st = PendingState.ALL.get(p.getUUID());
@@ -150,19 +162,15 @@ public final class AuthManager {
         lastActivityPos.remove(p.getUUID());
     }
 
-    /** 纯逻辑之外的活动刷新：位置变化则更新活动时间戳，超时则按配置登出。 */
+    /** 活动刷新：位置或朝向变化则更新活动时间戳，超时则按配置登出。 */
     public void onAuthenticatedTick(ServerPlayer p) {
         if (!authenticated.contains(p.getUUID())) return;
         long now = System.currentTimeMillis();
         double x = p.getX(), y = p.getY(), z = p.getZ();
+        float yaw = p.getYRot(), pitch = p.getXRot();
         double[] last = lastActivityPos.get(p.getUUID());
-        if (last == null) {
-            lastActivityPos.put(p.getUUID(), new double[]{x, y, z});
-            lastActivityMs.put(p.getUUID(), now);
-            return;
-        }
-        if (Math.abs(x - last[0]) > 0.01 || Math.abs(y - last[1]) > 0.01 || Math.abs(z - last[2]) > 0.01) {
-            last[0] = x; last[1] = y; last[2] = z;
+        if (viewChanged(last, x, y, z, yaw, pitch)) {
+            lastActivityPos.put(p.getUUID(), new double[]{x, y, z, yaw, pitch});
             lastActivityMs.put(p.getUUID(), now);
         }
         long lastMs = lastActivityMs.getOrDefault(p.getUUID(), now);
@@ -285,13 +293,16 @@ public final class AuthManager {
         PendingState.ALL.put(p.getUUID(), st);
         st.gatePassed = true; // 已过闸者登出后不必再过闸
         String ip = resolveIp(p);
-        switch (mode) {
-            case "lock" -> sendLoginPrompt(p);
-            case "disconnect-throttle" -> {
-                throttle.mark(p.getUUID(), System.currentTimeMillis(), AuthConfig.logoutThrottleSeconds());
-                p.connection.disconnect(Lang.msg("logout_ok"));
-            }
-            default -> p.connection.disconnect(Lang.msg("logout_ok"));
+        if (staysConnectedOnLogout(mode)) {
+            sendLoginPrompt(p);
+            // B4：登出回到未登录态，须重新从他人 Tab 隐藏（与进服时一致）
+            TabHider.hideFromOthers(p);
+            TabHider.hidePendingFrom(p);
+        } else if ("disconnect-throttle".equals(mode)) {
+            throttle.mark(p.getUUID(), System.currentTimeMillis(), AuthConfig.logoutThrottleSeconds());
+            p.connection.disconnect(Lang.msg("logout_ok"));
+        } else {
+            p.connection.disconnect(Lang.msg("logout_ok"));
         }
         limiter.reset(ip);
     }
