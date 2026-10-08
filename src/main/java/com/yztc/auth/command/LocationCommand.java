@@ -19,8 +19,6 @@ import java.util.Locale;
 
 /** `/yztauth where <玩家>` 与 `/yztauth tp <玩家>`：查询/传送到下线位置。 */
 public final class LocationCommand {
-    private static final String UNKNOWN = "?";
-
     private LocationCommand() {}
 
     /** 纯逻辑：仅管理玩家（非控制台）可 tp。 */
@@ -28,10 +26,16 @@ public final class LocationCommand {
         return executorIsPlayer && executorIsAdmin;
     }
 
-    /** 位置文本：有记录给坐标，无记录给 where_none。 */
-    public static Component whereText(LastSeen s) {
-        if (s == null) return Lang.msg("where_none", UNKNOWN);
+    /** 位置文本：有记录给坐标，无记录给 where_none（回显查询用的名字）。 */
+    public static Component whereText(LastSeen s, String queriedName) {
+        if (s == null) return Lang.msg("where_none", queriedName);
         return Lang.msg("where_result", s.name, s.dimension, fmt(s.x), fmt(s.y), fmt(s.z));
+    }
+
+    /** tp 失败文本：记录缺失 vs 维度不可用，分给不同文案。 */
+    public static Component tpFailText(LastSeen s, String queriedName) {
+        if (s == null) return Lang.msg("where_none", queriedName);
+        return Lang.msg("tp_bad_dimension", s.name);
     }
 
     private static String fmt(double v) {
@@ -43,8 +47,9 @@ public final class LocationCommand {
         root.then(Commands.literal("where")
                 .then(Commands.argument("player", StringArgumentType.word())
                         .executes(ctx -> {
-                            LastSeen s = lookup(StringArgumentType.getString(ctx, "player"));
-                            ctx.getSource().sendSuccess(() -> whereText(s), false);
+                            String q = StringArgumentType.getString(ctx, "player");
+                            LastSeen s = lookup(q);
+                            ctx.getSource().sendSuccess(() -> whereText(s, q), false);
                             return 1;
                         })));
 
@@ -59,10 +64,11 @@ public final class LocationCommand {
                                 src.sendFailure(isPlayer ? Lang.msg("no_permission") : Lang.msg("tp_console"));
                                 return 0;
                             }
-                            LastSeen s = lookup(StringArgumentType.getString(ctx, "player"));
-                            if (s == null) { src.sendFailure(whereText(null)); return 0; }
+                            String q = StringArgumentType.getString(ctx, "player");
+                            LastSeen s = lookup(q);
+                            if (s == null) { src.sendFailure(tpFailText(null, q)); return 0; }
                             ServerLevel level = resolveLevel(src.getServer(), s.dimension);
-                            if (level == null) { src.sendFailure(whereText(null)); return 0; }
+                            if (level == null) { src.sendFailure(tpFailText(s, q)); return 0; }
                             exec.teleportTo(level, s.x, s.y, s.z, s.yaw, s.pitch);
                             src.sendSuccess(() -> Lang.msg("tp_result", s.name), false);
                             return 1;

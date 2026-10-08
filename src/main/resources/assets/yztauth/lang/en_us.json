@@ -62,5 +62,6 @@
   "yztauth.msg.where_result": "%s was last seen in %s (%s, %s, %s)",
   "yztauth.msg.where_none": "No location record for %s.",
   "yztauth.msg.tp_result": "Teleported to %s's recorded location.",
+  "yztauth.msg.tp_bad_dimension": "The dimension recorded for %s is unavailable; can't teleport.",
   "yztauth.msg.tp_console": "Console cannot teleport to coordinates, run this in-game."
 }

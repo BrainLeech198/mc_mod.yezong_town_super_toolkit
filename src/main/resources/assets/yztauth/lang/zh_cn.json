@@ -62,5 +62,6 @@
   "yztauth.msg.where_result": "%s 最后出现在 %s (%s, %s, %s)",
   "yztauth.msg.where_none": "没有 %s 的位置记录。",
   "yztauth.msg.tp_result": "已传送到 %s 的记录位置。",
+  "yztauth.msg.tp_bad_dimension": "%s 记录的维度当前不可用，无法传送。",
   "yztauth.msg.tp_console": "控制台无法传送到坐标，请在游戏内执行。"
 }

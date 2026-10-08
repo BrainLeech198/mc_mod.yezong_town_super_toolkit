@@ -358,6 +358,13 @@ public final class SelfTestMain {
         Assert.that(!com.yztc.auth.data.MailStore.canReceive(20, 20), "满则拒收");
         Assert.that(!com.yztc.auth.data.MailStore.expired(1000, 1000 + 30L * 86400_000 - 1, 30), "差 1ms 未过期");
         Assert.that(com.yztc.auth.data.MailStore.expired(1000, 1000 + 30L * 86400_000, 30), "到期即过期");
+        // M4：配额按“未过期”计数，超期条目不该占额度
+        long nowMs = System.currentTimeMillis();
+        var liveList = new java.util.ArrayList<com.yztc.auth.data.Mail>();
+        liveList.add(mkMail("a", "bob", "新", false, nowMs));
+        liveList.add(mkMail("a", "bob", "陈年", false, nowMs - 31L * 86400_000));
+        Assert.eq(com.yztc.auth.data.MailStore.liveCount(liveList, nowMs, 30), 1, "liveCount 只数未过期");
+        Assert.eq(com.yztc.auth.data.MailStore.liveCount(new java.util.ArrayList<>(), nowMs, 30), 0, "空收件箱 0");
         var m = new com.yztc.auth.data.Mail();
         m.from = "alice"; m.to = "bob"; m.isPublic = false;
         Assert.that(com.yztc.auth.data.MailStore.canDelete(m, "bob", false), "收件人可删私信");
@@ -466,12 +473,21 @@ public final class SelfTestMain {
         var s = new com.yztc.auth.data.LastSeen();
         s.name = "alice"; s.dimension = "minecraft:overworld"; s.x = 1.5; s.y = 64; s.z = -2.5; s.at = 0;
         var tc = (net.minecraft.network.chat.contents.TranslatableContents)
-                com.yztc.auth.command.LocationCommand.whereText(s).getContents();
+                com.yztc.auth.command.LocationCommand.whereText(s, "alice").getContents();
         Assert.eq(tc.getKey(), "yztauth.msg.where_result", "where 文本键");
         Assert.that(java.util.Arrays.asList(tc.getArgs()).contains("1.5"), "where 文本含坐标");
+        // M2：查无记录时回显玩家真正输入的名字，而不是占位符
         var none = (net.minecraft.network.chat.contents.TranslatableContents)
-                com.yztc.auth.command.LocationCommand.whereText(null).getContents();
+                com.yztc.auth.command.LocationCommand.whereText(null, "bob").getContents();
         Assert.eq(none.getKey(), "yztauth.msg.where_none", "无记录用 where_none");
+        Assert.that(java.util.Arrays.asList(none.getArgs()).contains("bob"), "where_none 回显查询真名");
+        // M3：记录存在但维度不可用时，用专门的 tp 文案，而非复用 where_none
+        var badDim = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.command.LocationCommand.tpFailText(s, "alice").getContents();
+        Assert.eq(badDim.getKey(), "yztauth.msg.tp_bad_dimension", "维度不可用专用文案");
+        var missing = (net.minecraft.network.chat.contents.TranslatableContents)
+                com.yztc.auth.command.LocationCommand.tpFailText(null, "alice").getContents();
+        Assert.eq(missing.getKey(), "yztauth.msg.where_none", "tp 记录缺失仍用 where_none");
     }
 
     private static void testStatusRender() {

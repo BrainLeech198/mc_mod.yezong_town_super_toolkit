@@ -141,6 +141,13 @@ public final class MailStore {
         return inboxCount < cap;
     }
 
+    /** 纯逻辑：收件箱中仍有效的私信数（超期条目不占配额）。 */
+    public static int liveCount(List<Mail> inbox, long now, int days) {
+        int n = 0;
+        for (Mail m : inbox) if (!expired(m.createdAt, now, days)) n++;
+        return n;
+    }
+
     public static boolean expired(long createdAt, long now, int days) {
         return now - createdAt >= days * 86400_000L;
     }

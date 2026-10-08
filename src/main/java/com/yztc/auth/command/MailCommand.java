@@ -59,7 +59,9 @@ public final class MailCommand {
         String from = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         String toLower = to.toLowerCase(Locale.ROOT);
         if (!validRecipient(to, from)) { p.sendSystemMessage(Lang.msg("mail_no_recipient")); return 0; }
-        if (!MailStore.canReceive(store.inboxFor(toLower).size(), AuthConfig.mailMaxPerPlayer())) {
+        if (!MailStore.canReceive(
+                MailStore.liveCount(store.inboxFor(toLower), System.currentTimeMillis(), AuthConfig.mailExpireDays()),
+                AuthConfig.mailMaxPerPlayer())) {
             p.sendSystemMessage(Lang.msg("mail_full")); return 0;
         }
         Mail m = new Mail();
