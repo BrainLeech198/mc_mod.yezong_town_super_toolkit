@@ -6,7 +6,7 @@ import com.yztc.auth.data.AccountStore;
 import com.yztc.auth.lang.Lang;
 import com.yztc.auth.lockdown.LockdownSync;
 import com.yztc.auth.security.PasswordHasher;
-import com.yztc.auth.ui.TitleSink;
+import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -207,6 +207,7 @@ public final class AuthManager {
         authenticated.add(p.getUUID());
         PendingState.ALL.remove(p.getUUID());
         LockdownSync.authenticate(p);
+        WelcomeSync.clearTitles(p);
     }
 
     public String resolveIp(ServerPlayer p) {
@@ -230,18 +231,10 @@ public final class AuthManager {
     }
 
     private void sendGatePrompt(ServerPlayer p) {
-        p.sendSystemMessage(Lang.msg("prompt_gate.sub"));
-        TitleSink.send(p, Lang.msg("prompt_gate.title"), Lang.msg("prompt_gate.sub"));
+        WelcomeSync.promptGate(p);
     }
 
     private void sendLoginPrompt(ServerPlayer p) {
-        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
-        if (store.contains(name)) {
-            TitleSink.send(p, Lang.msg("prompt_login.title"), Lang.msg("prompt_login.sub"));
-            p.sendSystemMessage(Lang.msg("prompt_login.sub"));
-        } else {
-            TitleSink.send(p, Lang.msg("prompt_login.title"), Lang.msg("prompt_register.sub"));
-            p.sendSystemMessage(Lang.msg("prompt_register.sub"));
-        }
+        WelcomeSync.promptLogin(p, this);
     }
 }

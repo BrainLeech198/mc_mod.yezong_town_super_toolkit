@@ -27,8 +27,50 @@ public final class SelfTestMain {
         testGateManager();
         testPasswordUtil();
         testUiSession();
+        testChatPrompt();
+        testBookGuide();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testChatPrompt() {
+        Assert.section("ChatPrompt");
+        var btn = com.yztc.auth.ui.ChatPrompt.button(
+                net.minecraft.network.chat.Component.literal("▶ 点这里登录"), "/yztauth login ");
+        var style = btn.getStyle();
+        Assert.that(style.getClickEvent() != null, "按钮带 clickEvent");
+        Assert.eq(style.getClickEvent().getAction(),
+                net.minecraft.network.chat.ClickEvent.Action.SUGGEST_COMMAND, "clickEvent 动作为 suggest_command");
+        Assert.eq(style.getClickEvent().getValue(), "/yztauth login ", "clickEvent 值为建议命令");
+        Assert.that(style.getHoverEvent() != null, "按钮带 hoverEvent");
+        Assert.eq(style.getHoverEvent().getAction(),
+                net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT, "hoverEvent 动作为 show_text");
+        Assert.eq(btn.getString(), "▶ 点这里登录", "按钮文本保留");
+    }
+
+    private static void testBookGuide() {
+        Assert.section("BookGuide");
+        var tag = com.yztc.auth.ui.BookGuide.bookTag();
+        Assert.eq(tag.getString("title"), "yztauth 指南", "书名");
+        Assert.eq(tag.getString("author"), "服务器", "作者");
+        var pages = tag.getList("pages", net.minecraft.nbt.Tag.TAG_STRING);
+        Assert.that(pages.size() >= 3, "至少 3 页（实得 " + pages.size() + "）");
+        int clickable = 0;
+        for (int i = 0; i < pages.size(); i++) {
+            String raw = pages.getString(i);
+            try {
+                var o = com.google.gson.JsonParser.parseString(raw).getAsJsonObject();
+                Assert.that(o.has("text"), "第 " + (i + 1) + " 页含 text 字段");
+                if (o.has("clickEvent")) {
+                    clickable++;
+                    Assert.eq(o.getAsJsonObject("clickEvent").get("action").getAsString(), "suggest_command",
+                            "第 " + (i + 1) + " 页 clickEvent 为 suggest_command");
+                }
+            } catch (Exception e) {
+                Assert.that(false, "第 " + (i + 1) + " 页不是合法 JSON: " + e);
+            }
+        }
+        Assert.that(clickable >= 2, "至少 2 页带可点击命令（实得 " + clickable + "）");
     }
 
     private static void testUiSession() {
