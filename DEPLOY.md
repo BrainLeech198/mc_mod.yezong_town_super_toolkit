@@ -24,7 +24,7 @@ gradle build --no-daemon --console=plain -Dfg.check.certs=false
 
 ```bash
 gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
-# 期望末行：通过=262 失败=0
+# 期望末行：通过=276 失败=0
 ```
 
 ## 3. 替换
@@ -118,7 +118,7 @@ gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
 
 ## 9. 验收记录（Spec §7 的 17 条用例）
 
-自动化覆盖率：`gradle selfTest` 262 条纯逻辑用例全绿，覆盖哈希/存储/限流/迁移/语言/闸门/密码工具/UI 会话/书页 NBT/验密/闸门决策/登出禁重连/闸门限流，以及本批新增的密码强度/审计行格式/留言与位置存储/倒计时与欢迎语构建/Tab 隐藏纯逻辑/位置文本/状态文本/收件名校验。以下 32 条依赖真实客户端交互，**本次未由构建流程执行**，需在 `runServer` + `runClient` 手工走查后填写：
+自动化覆盖率：`gradle selfTest` 276 条纯逻辑用例全绿，覆盖哈希/存储/限流/迁移/语言/闸门/密码工具/UI 会话/书页 NBT/验密/闸门决策/登出禁重连/闸门限流，以及本批新增的密码强度/审计行格式/留言与位置存储/倒计时与欢迎语构建/Tab 隐藏纯逻辑/位置文本/状态文本/收件名校验/AFK 朝向判定/登出重隐藏。以下 32 条依赖真实客户端交互，**本次未由构建流程执行**，需在 `runServer` + `runClient` 手工走查后填写：
 
 | # | 用例 | 结果 |
 |---|---|---|
