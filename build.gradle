@@ -46,6 +46,8 @@ tasks.register('selfTest', JavaExec) {
     description = '运行纯逻辑自测器'
     classpath = sourceSets.selftest.runtimeClasspath
     mainClass = 'com.yztc.auth.selftest.SelfTestMain'
+    // Windows 控制台默认 GBK，强制 UTF-8 让中文断言信息可读
+    jvmArgs '-Dfile.encoding=UTF-8'
 }
 
 repositories {
