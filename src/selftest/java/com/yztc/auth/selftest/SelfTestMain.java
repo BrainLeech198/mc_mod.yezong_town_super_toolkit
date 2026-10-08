@@ -26,8 +26,43 @@ public final class SelfTestMain {
         testLangKeysReferenced();
         testGateManager();
         testPasswordUtil();
+        testUiSession();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testUiSession() {
+        Assert.section("UiSession");
+        java.util.UUID owner = java.util.UUID.randomUUID();
+        java.util.List<String> commits = new java.util.ArrayList<>();
+        int[] cancels = {0};
+        var s = com.yztc.auth.ui.UiSession.open(owner, commits::add, () -> cancels[0]++);
+
+        Assert.that(com.yztc.auth.ui.UiSession.isActive(owner), "open 后会话活跃");
+        Assert.that(com.yztc.auth.ui.UiSession.get(owner) == s, "get 返回同一会话");
+        s.commit("hello");
+        Assert.eq(commits.toString(), "[hello]", "commit 回调一次且带值");
+        Assert.that(com.yztc.auth.ui.UiSession.isActive(owner), "commit 本身不清注册（由调用方 forget）");
+        s.commit("again");
+        Assert.eq(commits.toString(), "[hello]", "重复 commit 不再回调");
+        s.cancel();
+        Assert.eq(cancels[0], 0, "已提交后 cancel 不再回调");
+
+        java.util.UUID owner2 = java.util.UUID.randomUUID();
+        java.util.List<String> commits2 = new java.util.ArrayList<>();
+        int[] cancels2 = {0};
+        var s2 = com.yztc.auth.ui.UiSession.open(owner2, commits2::add, () -> cancels2[0]++);
+        s2.cancel();
+        Assert.eq(cancels2[0], 1, "cancel 回调一次");
+        s2.cancel();
+        Assert.eq(cancels2[0], 1, "重复 cancel 不再回调");
+        s2.commit("late");
+        Assert.eq(commits2.size(), 0, "已取消后 commit 不回调 onCommit");
+
+        com.yztc.auth.ui.UiSession.forget(owner);
+        Assert.that(!com.yztc.auth.ui.UiSession.isActive(owner), "forget 后不活跃");
+        com.yztc.auth.ui.UiSession.forget(owner2);
+        Assert.that(!com.yztc.auth.ui.UiSession.isActive(owner2), "forget 后不活跃（第二个）");
     }
 
     // 扫描主源码里 Lang.msg("...") / Lang.key("...") 的字面量 id，保证都已在 zh_cn 声明
