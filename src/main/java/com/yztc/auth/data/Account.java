@@ -6,6 +6,7 @@ public final class Account {
     public String salt;
     public String hash;
     public String email;
+    public String lastIp;
     public Long registeredAt;
     public Long lastLogin;
     public int failedAttempts;

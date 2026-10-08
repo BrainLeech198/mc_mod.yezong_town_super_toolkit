@@ -6,7 +6,10 @@ import com.yztc.auth.auth.AuthManager;
 import com.yztc.auth.auth.GateManager;
 import com.yztc.auth.command.AdminCommands;
 import com.yztc.auth.config.AuthConfig;
+import com.yztc.auth.audit.AuditLog;
 import com.yztc.auth.data.AccountStore;
+import com.yztc.auth.data.LastSeenStore;
+import com.yztc.auth.data.MailStore;
 import com.yztc.auth.data.StoreHolder;
 import com.yztc.auth.lockdown.LockdownHandler;
 import net.minecraftforge.common.MinecraftForge;
@@ -39,6 +42,24 @@ public class YzAuthMod {
             LOGGER.error("[yztauth] 加载 users.json 失败，使用空库（旧文件保留）", e);
         }
         StoreHolder.set(store);
+
+        MailStore mail = new MailStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("mail.json"));
+        try {
+            mail.load();
+        } catch (IOException e) {
+            LOGGER.error("[yztauth] 加载 mail.json 失败，使用空库（旧文件保留）", e);
+        }
+        StoreHolder.setMail(mail);
+
+        LastSeenStore lastSeen = new LastSeenStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("lastseen.json"));
+        try {
+            lastSeen.load();
+        } catch (IOException e) {
+            LOGGER.error("[yztauth] 加载 lastseen.json 失败，使用空库（旧文件保留）", e);
+        }
+        StoreHolder.setLastSeen(lastSeen);
+
+        StoreHolder.setAudit(new AuditLog(FMLPaths.GAMEDIR.get().resolve("logs").resolve("yztauth-audit.log")));
 
         GateManager gate = new GateManager(store);
         AuthManager auth = new AuthManager(store, gate);

@@ -47,6 +47,7 @@ public final class SelfTestMain {
         testTabHider();
         testLocationPure();
         testStatusRender();
+        testMailCommand();
 
         System.exit(Assert.summaryAndExit());
     }
@@ -467,6 +468,16 @@ public final class SelfTestMain {
         var c2 = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.StatusCommand.render(new String[0], 0).getContents();
         Assert.eq(c2.getKey(), "yztauth.msg.status_line", "空名单也给文本");
+    }
+
+    private static void testMailCommand() {
+        Assert.section("MailCommand.validRecipient");
+        Assert.that(com.yztc.auth.command.MailCommand.validRecipient("bob", "alice"), "正常收件人");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("alice", "alice"), "不能发给自己");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("", "alice"), "空名不合法");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("abcdefghijklmnopq", "alice"), "超 16 不合法");
+        Assert.that(com.yztc.auth.command.MailCommand.validRecipient("Bob", "alice"), "大小写不敏感");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("Alice", "alice"), "自己大小写变体也拒");
     }
 
     private static void testBookGuide() {

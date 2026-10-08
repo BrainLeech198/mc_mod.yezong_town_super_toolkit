@@ -1,20 +1,28 @@
 package com.yztc.auth.auth;
 
+import com.yztc.auth.audit.AuditLog;
 import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.AccountStore;
+import com.yztc.auth.data.MailStore;
+import com.yztc.auth.data.StoreHolder;
 import com.yztc.auth.lang.Lang;
 import com.yztc.auth.lockdown.LockdownSync;
+import com.yztc.auth.perm.Permissions;
 import com.yztc.auth.security.PasswordHasher;
+import com.yztc.auth.ui.TabHider;
 import com.yztc.auth.ui.WelcomeSync;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -29,6 +37,8 @@ public final class AuthManager {
     private final AccountStore store;
     private final GateManager gate;
     private final Set<UUID> authenticated = new HashSet<>();
+    private final Map<UUID, Long> lastActivityMs = new HashMap<>();
+    private final Map<UUID, double[]> lastActivityPos = new HashMap<>();
     private RateLimiter limiter;
     private final LogoutThrottle throttle = new LogoutThrottle();
 
@@ -40,6 +50,8 @@ public final class AuthManager {
     public void load() {
         rebuildLimiter();
         authenticated.clear();
+        lastActivityMs.clear();
+        lastActivityPos.clear();
         throttle.clear();
     }
 
@@ -80,8 +92,17 @@ public final class AuthManager {
 
     /** 闸门验密（含 IP 限流）。 */
     public GateManager.GateResult gateAttempt(ServerPlayer p, String password) {
-        return GateManager.attempt(limiter, resolveIp(p), System.currentTimeMillis(), gate.isGateSet(),
+        String ip = resolveIp(p);
+        GateManager.GateResult r = GateManager.attempt(limiter, ip, System.currentTimeMillis(), gate.isGateSet(),
                 () -> gate.verify(p, password));
+        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
+        switch (r) {
+            case OK -> audit(name, ip, "GATE_OK");
+            case BAD -> audit(name, ip, "GATE_FAIL");
+            case RATE_LIMITED -> audit(name, ip, "GATE_RATE_LIMITED");
+            default -> { }
+        }
+        return r;
     }
 
     private void rebuildLimiter() {
@@ -109,11 +130,46 @@ public final class AuthManager {
             st.gatePassed = true;
             sendLoginPrompt(p);
         }
+        // B4：未登录者从他人 Tab 隐藏，同时自己也看不到别的未登录者
+        TabHider.hideFromOthers(p);
+        TabHider.hidePendingFrom(p);
+        // D1：未注册的新玩家首次进服，全服欢迎
+        if (store.get(p.getGameProfile().getName().toLowerCase(Locale.ROOT)) == null) {
+            MinecraftServer server = p.server;
+            if (server != null) {
+                server.getPlayerList().broadcastSystemMessage(
+                        WelcomeSync.firstJoinMessage(p.getGameProfile().getName()), false);
+            }
+        }
     }
 
     public void onLeave(ServerPlayer p) {
         PendingState.ALL.remove(p.getUUID());
         authenticated.remove(p.getUUID());
+        lastActivityMs.remove(p.getUUID());
+        lastActivityPos.remove(p.getUUID());
+    }
+
+    /** 纯逻辑之外的活动刷新：位置变化则更新活动时间戳，超时则按配置登出。 */
+    public void onAuthenticatedTick(ServerPlayer p) {
+        if (!authenticated.contains(p.getUUID())) return;
+        long now = System.currentTimeMillis();
+        double x = p.getX(), y = p.getY(), z = p.getZ();
+        double[] last = lastActivityPos.get(p.getUUID());
+        if (last == null) {
+            lastActivityPos.put(p.getUUID(), new double[]{x, y, z});
+            lastActivityMs.put(p.getUUID(), now);
+            return;
+        }
+        if (Math.abs(x - last[0]) > 0.01 || Math.abs(y - last[1]) > 0.01 || Math.abs(z - last[2]) > 0.01) {
+            last[0] = x; last[1] = y; last[2] = z;
+            lastActivityMs.put(p.getUUID(), now);
+        }
+        long lastMs = lastActivityMs.getOrDefault(p.getUUID(), now);
+        if (afkExpired(lastMs, now, AuthConfig.afkLogoutSeconds() * 1000L, AuthConfig.afkLogoutEnabled())) {
+            p.sendSystemMessage(Lang.msg("afk_logout"));
+            logout(p, AuthConfig.logoutMode());
+        }
     }
 
     public void onTick(ServerPlayer p) {
@@ -137,15 +193,22 @@ public final class AuthManager {
 
     public LoginResult login(ServerPlayer p, String password) {
         String ip = resolveIp(p);
+        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         if (!limiter.tryAcquire(ip, System.currentTimeMillis())) {
+            audit(name, ip, "LOGIN_RATE_LIMITED");
             return LoginResult.RATE_LIMITED;
         }
-        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         Account a = store.get(name);
-        if (a == null) return LoginResult.NO_ACCOUNT;
+        if (a == null) {
+            audit(name, ip, "LOGIN_NO_ACCOUNT");
+            return LoginResult.NO_ACCOUNT;
+        }
 
         long now = System.currentTimeMillis();
-        if (a.lockedUntil > now) return LoginResult.LOCKED;
+        if (a.lockedUntil > now) {
+            audit(name, ip, "LOGIN_LOCKED");
+            return LoginResult.LOCKED;
+        }
 
         boolean ok;
         if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
@@ -161,6 +224,7 @@ public final class AuthManager {
                 a.failedAttempts = 0;
             }
             persist();
+            audit(name, ip, "LOGIN_FAIL");
             return LoginResult.BAD;
         }
 
@@ -174,10 +238,16 @@ public final class AuthManager {
             a.migratedAt = null;
             LOGGER.info("[yztauth] {} UPGRADED legacy->pbkdf2", name);
         }
+        boolean newIp = ipChanged(a.lastIp, ip); // C1：首次登录（lastIp 为空）不提醒
         a.failedAttempts = 0;
         a.lockedUntil = 0;
         a.lastLogin = now;
+        a.lastIp = ip;
         persist();
+
+        if (newIp) p.sendSystemMessage(Lang.msg("login_new_ip", ip));
+        audit(name, ip, "LOGIN_OK");
+        notifyAdmins(p, name, ip);
 
         completeAuth(p);
         limiter.reset(ip);
@@ -209,6 +279,8 @@ public final class AuthManager {
 
     public void logout(ServerPlayer p, String mode) {
         authenticated.remove(p.getUUID());
+        lastActivityMs.remove(p.getUUID());
+        lastActivityPos.remove(p.getUUID());
         PendingState st = new PendingState(p); // 以当前位置为新原点
         PendingState.ALL.put(p.getUUID(), st);
         st.gatePassed = true; // 已过闸者登出后不必再过闸
@@ -273,8 +345,36 @@ public final class AuthManager {
     private void completeAuth(ServerPlayer p) {
         authenticated.add(p.getUUID());
         PendingState.ALL.remove(p.getUUID());
+        lastActivityMs.put(p.getUUID(), System.currentTimeMillis());
+        lastActivityPos.remove(p.getUUID());
         LockdownSync.authenticate(p);
+        TabHider.reveal(p);
         WelcomeSync.welcome(p);
+        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
+        MailStore mail = StoreHolder.mail();
+        if (mail != null) {
+            int unread = mail.unreadFor(name);
+            if (unread > 0) p.sendSystemMessage(Lang.msg("mail_unread_notice", String.valueOf(unread)));
+        }
+    }
+
+    /** 写审计行（受配置开关控制，且仅记 名字/IP/结果词，绝不含明文口令）。 */
+    private static void audit(String name, String ip, String event) {
+        if (!AuthConfig.auditLogEnabled()) return;
+        AuditLog log = StoreHolder.audit();
+        if (log == null) return;
+        log.append(AuditLog.line(AuditLog.nowIso(), name, ip, event));
+    }
+
+    /** B2：登录成功后通知在线管理员（受配置开关控制）。 */
+    private void notifyAdmins(ServerPlayer p, String name, String ip) {
+        if (!AuthConfig.notifyAdminOnLogin()) return;
+        MinecraftServer server = p.server;
+        if (server == null) return;
+        for (ServerPlayer admin : server.getPlayerList().getPlayers()) {
+            if (admin.getUUID().equals(p.getUUID())) continue;
+            if (Permissions.isAdmin(admin)) admin.sendSystemMessage(Lang.msg("admin_login_notice", name, ip));
+        }
     }
 
     public String resolveIp(ServerPlayer p) {

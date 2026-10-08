@@ -67,8 +67,12 @@ public final class LockdownHandler {
     public static void onTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!(event.player instanceof ServerPlayer p)) return;
+        if (auth == null) return;
         PendingState st = PendingState.ALL.get(p.getUUID());
-        if (st == null) return;
+        if (st == null) {
+            auth.onAuthenticatedTick(p); // 已认证玩家：AFK 判定
+            return;
+        }
         auth.onTick(p);
         double dx = p.getX() - st.originX, dy = p.getY() - st.originY, dz = p.getZ() - st.originZ;
         if (dx * dx + dy * dy + dz * dz > 0.01) {

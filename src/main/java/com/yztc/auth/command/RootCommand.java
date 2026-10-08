@@ -83,6 +83,7 @@ public final class RootCommand {
         AdminCommands.attach(root, auth, gate);
         LocationCommand.attach(root, auth);
         StatusCommand.attach(root, auth);
+        MailCommand.attach(root, auth);
 
         d.register(root);
     }
