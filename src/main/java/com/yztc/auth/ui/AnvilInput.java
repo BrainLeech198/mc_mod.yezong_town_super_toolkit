@@ -65,12 +65,17 @@ public final class AnvilInput {
             super.removed(p);
             if (!UiSession.isActive(owner.getUUID())) return;
             String v = last;
-            if (v != null && !v.isBlank() && !v.equals(placeholder)) {
-                session.commit(v);
-            } else {
-                session.cancel();
-            }
             UiSession.forget(owner.getUUID());
+            // 原版关屏后会紧接着把 containerMenu 复位为背包菜单（doCloseContainer）；
+            // 若回调里要再开一个菜单（如二次验密通过后输入新密码），必须延后到下一 tick，
+            // 否则新菜单会被那次复位覆盖。
+            owner.server.execute(() -> {
+                if (v != null && !v.isBlank() && !v.equals(placeholder)) {
+                    session.commit(v);
+                } else {
+                    session.cancel();
+                }
+            });
         }
     }
 }

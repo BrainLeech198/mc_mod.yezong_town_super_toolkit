@@ -29,8 +29,38 @@ public final class SelfTestMain {
         testUiSession();
         testChatPrompt();
         testBookGuide();
+        testVerifyPassword();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testVerifyPassword() {
+        Assert.section("AuthManager.verifyPassword");
+        try {
+            Path dir = Files.createTempDirectory("yztauth-vpw");
+            AccountStore store = new AccountStore(dir.resolve("users.json"));
+            store.load();
+            var auth = new com.yztc.auth.auth.AuthManager(
+                    store, new com.yztc.auth.auth.GateManager(store));
+            auth.load();
+
+            Account pbk = new Account();
+            com.yztc.auth.data.PasswordUtil.assign(pbk, "correct-horse", 1000);
+            store.put("alice", pbk);
+            Assert.that(auth.verifyPassword("alice", "correct-horse"), "PBKDF2 正确密码通过");
+            Assert.that(!auth.verifyPassword("alice", "wrong"), "PBKDF2 错误密码拒绝");
+
+            Account leg = new Account();
+            leg.algo = PasswordHasher.ALGO_LEGACY;
+            leg.hash = PasswordHasher.legacySha256Hex("oldpass".toCharArray());
+            store.put("bob", leg);
+            Assert.that(auth.verifyPassword("bob", "oldpass"), "legacy 正确密码通过（hex 大小写不敏感）");
+            Assert.that(!auth.verifyPassword("bob", "nope"), "legacy 错误密码拒绝");
+
+            Assert.that(!auth.verifyPassword("ghost", "whatever"), "不存在的账号返回 false");
+        } catch (Exception e) {
+            Assert.that(false, "verifyPassword 测试异常: " + e);
+        }
     }
 
     private static void testChatPrompt() {

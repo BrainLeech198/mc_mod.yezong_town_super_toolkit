@@ -203,6 +203,22 @@ public final class AuthManager {
     public Account accountOf(String nameLower) { return store.get(nameLower); }
     public void persistNow() { persist(); }
 
+    /** 用某玩家自己的当前密码做二次验密（危险操作的守卫）。 */
+    public boolean verifyOwnPassword(ServerPlayer p, String password) {
+        return verifyPassword(p.getGameProfile().getName().toLowerCase(Locale.ROOT), password);
+    }
+
+    /** 校验某账号的密码（不改变任何状态、不计数失败），便于自测与复用。 */
+    public boolean verifyPassword(String nameLower, String password) {
+        Account a = store.get(nameLower);
+        if (a == null) return false;
+        if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
+            return PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(password.toCharArray()), a.hash);
+        }
+        return PasswordHasher.verifyPbkdf2(password.toCharArray(), a.iterations,
+                DEC.decode(a.salt), DEC.decode(a.hash));
+    }
+
     private void completeAuth(ServerPlayer p) {
         authenticated.add(p.getUUID());
         PendingState.ALL.remove(p.getUUID());
