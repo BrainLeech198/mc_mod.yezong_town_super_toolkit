@@ -117,7 +117,18 @@ public final class RootCommand {
         if (auth.isAuthenticated(p)) { p.sendSystemMessage(Lang.msg("already_logged_in")); return 1; }
         switch (auth.login(p, pw)) {
             case OK -> p.sendSystemMessage(Lang.msg("login_ok", p.getGameProfile().getName()));
-            case BAD -> p.sendSystemMessage(Lang.msg("login_bad"));
+            case BAD -> {
+                // A2：失败后给剩余次数；若本次已达阈值触发锁定，直接给锁定提示
+                Account a = auth.accountOf(p.getGameProfile().getName().toLowerCase(Locale.ROOT));
+                if (a != null && a.lockedUntil > System.currentTimeMillis()) {
+                    long secs = Math.max(0, (a.lockedUntil - System.currentTimeMillis()) / 1000);
+                    p.sendSystemMessage(Lang.msg("login_locked", secs));
+                } else {
+                    int remaining = AuthManager.remainingAttempts(
+                            a == null ? 0 : a.failedAttempts, AuthConfig.maxLoginAttempts());
+                    p.sendSystemMessage(Lang.msg("login_bad_remaining", String.valueOf(remaining)));
+                }
+            }
             case NO_ACCOUNT -> p.sendSystemMessage(Lang.msg("not_registered"));
             case LOCKED -> {
                 Account a = auth.accountOf(p.getGameProfile().getName().toLowerCase(Locale.ROOT));
@@ -136,11 +147,23 @@ public final class RootCommand {
             return 1;
         }
         switch (auth.register(p, pw)) {
-            case OK -> p.sendSystemMessage(Lang.msg("register_ok"));
+            case OK -> {
+                p.sendSystemMessage(Lang.msg("register_ok"));
+                // A3：提示密码强度（弱/中/强），引导玩家用更强的密码
+                p.sendSystemMessage(Lang.msg("password_strength", Lang.msg(strengthKey(pw))));
+            }
             case NO_ACCOUNT -> p.sendSystemMessage(Lang.msg("register_exists"));
             case RATE_LIMITED -> p.sendSystemMessage(Lang.msg("login_rate_limited"));
             default -> p.sendSystemMessage(Lang.msg("not_registered"));
         }
         return 1;
+    }
+
+    private static String strengthKey(String pw) {
+        return switch (com.yztc.auth.data.PasswordStrength.of(pw)) {
+            case WEAK -> "strength_weak";
+            case MEDIUM -> "strength_mid";
+            case STRONG -> "strength_strong";
+        };
     }
 }
