@@ -1,0 +1,87 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'debug'
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+        client { property 'forge.enabledGameTestNamespaces', mod_id }
+        server { property 'forge.enabledGameTestNamespaces', mod_id; args '--nogui' }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+// 纯逻辑自测源集（不打包进 jar，也不需要任何测试框架依赖）
+sourceSets {
+    selftest {
+        java.srcDir 'src/selftest/java'
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+
+tasks.register('selfTest', JavaExec) {
+    group = 'verification'
+    description = '运行纯逻辑自测器'
+    classpath = sourceSets.selftest.runtimeClasspath
+    mainClass = 'com.yztc.auth.selftest.SelfTestMain'
+}
+
+repositories {
+    maven { url = 'https://maven.aliyun.com/repository/central' }
+    maven { url = 'https://maven.aliyun.com/repository/public' }
+    maven { url = 'https://libraries.minecraft.net/' }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version, forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors: mod_authors, mod_description: mod_description,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) { expand replaceProperties + [project: project] }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_id,
+                'Specification-Version' : '1',
+                'Implementation-Title'  : project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
