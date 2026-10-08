@@ -20,8 +20,33 @@ public final class SelfTestMain {
         testAccountStore();
         testRateLimiter();
         testMigrateService();
+        testLang();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testLang() {
+        Assert.section("Lang");
+        try {
+            java.util.Set<String> zh = langKeys("/assets/yztauth/lang/zh_cn.json");
+            java.util.Set<String> en = langKeys("/assets/yztauth/lang/en_us.json");
+            Assert.that(!zh.isEmpty(), "zh_cn 非空");
+            Assert.that(zh.equals(en), "zh_cn 与 en_us 键集合一致");
+            Assert.that(zh.stream().allMatch(k -> k.startsWith("yztauth.msg.")), "所有键前缀为 yztauth.msg.");
+            Assert.eq(com.yztc.auth.lang.Lang.key("login_ok"), "yztauth.msg.login_ok", "Lang.key 拼接前缀");
+        } catch (Exception e) {
+            Assert.that(false, "Lang 测试异常: " + e);
+        }
+    }
+
+    private static java.util.Set<String> langKeys(String resource) throws java.io.IOException {
+        try (java.io.InputStream in = SelfTestMain.class.getResourceAsStream(resource)) {
+            if (in == null) throw new java.io.IOException("资源缺失: " + resource);
+            String raw = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            com.google.gson.JsonObject o =
+                    com.google.gson.JsonParser.parseString(raw).getAsJsonObject();
+            return new java.util.TreeSet<>(o.keySet());
+        }
     }
 
     private static void testMigrateService() {
