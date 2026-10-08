@@ -7,6 +7,7 @@
   "yztauth.msg.gate_ok": "Server gate passed.",
   "yztauth.msg.gate_bad": "Wrong server password.",
   "yztauth.msg.gate_not_set": "No server password is set.",
+  "yztauth.msg.gate_required": "Pass the server gate first, then log in or register.",
   "yztauth.msg.login_ok": "Logged in. Welcome back %s!",
   "yztauth.msg.login_bad": "Wrong password.",
   "yztauth.msg.login_locked": "Account locked, try again in %s s.",

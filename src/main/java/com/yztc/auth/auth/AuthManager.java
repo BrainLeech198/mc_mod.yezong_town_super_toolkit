@@ -27,7 +27,7 @@ public final class AuthManager {
     private final GateManager gate;
     private final Set<UUID> authenticated = new HashSet<>();
     private RateLimiter limiter;
-    private final Set<UUID> throttleDisconnect = new HashSet<>();
+    private final LogoutThrottle throttle = new LogoutThrottle();
 
     public AuthManager(AccountStore store, GateManager gate) {
         this.store = store;
@@ -37,7 +37,28 @@ public final class AuthManager {
     public void load() {
         rebuildLimiter();
         authenticated.clear();
-        throttleDisconnect.clear();
+        throttle.clear();
+    }
+
+    /**
+     * 纯逻辑：是否必须先过全服闸门。gatePassed 必须被真正读取，否则闸门形同虚设。
+     * 已登录者不受闸门约束；未过闸且未登录者必须过闸。
+     */
+    public static boolean gateRequired(boolean gateSet, boolean authenticated, boolean gatePassed) {
+        return gateSet && !authenticated && !gatePassed;
+    }
+
+    /** 该玩家此刻是否必须先过闸。 */
+    public boolean gateRequired(ServerPlayer p) {
+        PendingState st = PendingState.ALL.get(p.getUUID());
+        return gateRequired(gate.isGateSet(), authenticated.contains(p.getUUID()),
+                st != null && st.gatePassed);
+    }
+
+    /** 闸门验密（含 IP 限流）。 */
+    public GateManager.GateResult gateAttempt(ServerPlayer p, String password) {
+        return GateManager.attempt(limiter, resolveIp(p), System.currentTimeMillis(), gate.isGateSet(),
+                () -> gate.verify(p, password));
     }
 
     private void rebuildLimiter() {
@@ -52,7 +73,7 @@ public final class AuthManager {
         authenticated.remove(p.getUUID());
         PendingState st = new PendingState(p);
         PendingState.ALL.put(p.getUUID(), st);
-        if (throttleDisconnect.contains(p.getUUID())) {
+        if (throttle.blocked(p.getUUID(), System.currentTimeMillis())) {
             p.connection.disconnect(Lang.msg("logout_ok"));
             return;
         }
@@ -165,7 +186,7 @@ public final class AuthManager {
         switch (mode) {
             case "lock" -> sendLoginPrompt(p);
             case "disconnect-throttle" -> {
-                throttleDisconnect.add(p.getUUID());
+                throttle.mark(p.getUUID(), System.currentTimeMillis(), AuthConfig.logoutThrottleSeconds());
                 p.connection.disconnect(Lang.msg("logout_ok"));
             }
             default -> p.connection.disconnect(Lang.msg("logout_ok"));

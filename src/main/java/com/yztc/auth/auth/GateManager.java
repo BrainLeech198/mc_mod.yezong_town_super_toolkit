@@ -19,10 +19,23 @@ public final class GateManager {
         this.store = store;
     }
 
-    public enum GateResult { OK, BAD, NOT_SET }
+    public enum GateResult { OK, BAD, NOT_SET, RATE_LIMITED }
 
     public boolean isGateSet() {
         return store.getGate() != null;
+    }
+
+    /**
+     * 纯逻辑：闸门验密 = 先过 IP 限流（与登录共享配置），再验密；成功即重置该 IP。
+     * 未设闸门时不消耗额度。抽成静态函数便于自测与复用。
+     */
+    public static GateResult attempt(RateLimiter limiter, String ip, long now, boolean gateSet,
+                                     java.util.function.Supplier<GateResult> verify) {
+        if (!gateSet) return GateResult.NOT_SET;
+        if (!limiter.tryAcquire(ip, now)) return GateResult.RATE_LIMITED;
+        GateResult r = verify.get();
+        if (r == GateResult.OK) limiter.reset(ip);
+        return r;
     }
 
     public GateResult verify(ServerPlayer player, String password) {

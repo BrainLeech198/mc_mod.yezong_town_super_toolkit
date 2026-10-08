@@ -30,8 +30,97 @@ public final class SelfTestMain {
         testChatPrompt();
         testBookGuide();
         testVerifyPassword();
+        testGateRequired();
+        testGateAttempt();
+        testLogoutThrottle();
+        testGateChangePolicy();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    // 闸门决策：未过闸者不得进入登录/注册（否则全服闸门形同虚设）
+    private static void testGateRequired() {
+        Assert.section("AuthManager.gateRequired");
+        Assert.that(!com.yztc.auth.auth.AuthManager.gateRequired(false, false, false),
+                "未设全服闸门 → 无需过闸");
+        Assert.that(com.yztc.auth.auth.AuthManager.gateRequired(true, false, false),
+                "已设闸门 + 未登录 + 未过闸 → 必须先过闸");
+        Assert.that(!com.yztc.auth.auth.AuthManager.gateRequired(true, false, true),
+                "已过闸（gatePassed 被读取）→ 不再要求过闸");
+        Assert.that(!com.yztc.auth.auth.AuthManager.gateRequired(true, true, false),
+                "已登录 → 不因闸门受阻");
+        Assert.that(!com.yztc.auth.auth.AuthManager.gateRequired(true, true, true),
+                "已登录且已过闸 → 不要求过闸");
+        Assert.that(!com.yztc.auth.auth.AuthManager.gateRequired(false, true, false),
+                "未设闸门且已登录 → 不要求过闸");
+    }
+
+    // 闸门验密必须与登录共享 IP 限流，否则可无限暴力猜全服密码
+    private static void testGateAttempt() {
+        Assert.section("GateManager.attempt（限流+验密）");
+        java.util.function.Supplier<com.yztc.auth.auth.GateManager.GateResult> yes =
+                () -> com.yztc.auth.auth.GateManager.GateResult.OK;
+        java.util.function.Supplier<com.yztc.auth.auth.GateManager.GateResult> no =
+                () -> com.yztc.auth.auth.GateManager.GateResult.BAD;
+
+        var rl1 = new RateLimiter(1, 60_000);
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl1, "ip", 0, false, yes).name(),
+                "NOT_SET", "未设闸门 → NOT_SET");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl1, "ip", 0, true, no).name(),
+                "BAD", "未设闸门的尝试不消耗额度");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl1, "ip", 0, true, no).name(),
+                "RATE_LIMITED", "额度用尽后闸门尝试被 IP 限流");
+
+        var rl2 = new RateLimiter(2, 60_000);
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl2, "ip", 0, true, no).name(),
+                "BAD", "第 1 次错误密码 → BAD");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl2, "ip", 1, true, no).name(),
+                "BAD", "第 2 次错误密码 → BAD");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl2, "ip", 2, true, no).name(),
+                "RATE_LIMITED", "第 3 次 → RATE_LIMITED");
+
+        var rl3 = new RateLimiter(2, 60_000);
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl3, "ip", 0, true, yes).name(),
+                "OK", "正确密码 → OK");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl3, "ip", 1, true, yes).name(),
+                "OK", "成功后重置额度：第 2 次仍 OK");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl3, "ip", 2, true, yes).name(),
+                "OK", "成功后重置额度：第 3 次仍 OK");
+        Assert.eq(com.yztc.auth.auth.GateManager.attempt(rl3, "other", 2, true, no).name(),
+                "BAD", "换 IP 不受影响");
+    }
+
+    // disconnect-throttle 必须是「限时」禁重连，而非永久封禁
+    private static void testLogoutThrottle() {
+        Assert.section("LogoutThrottle");
+        var t = new com.yztc.auth.auth.LogoutThrottle();
+        var id = java.util.UUID.randomUUID();
+        var other = java.util.UUID.randomUUID();
+        Assert.that(!t.blocked(id, 1000), "未标记时放行");
+        t.mark(id, 1000, 10); // 禁至 11000
+        Assert.that(t.blocked(id, 1000), "刚登出即被禁重连");
+        Assert.that(t.blocked(id, 10_999), "未到期仍被禁");
+        Assert.that(!t.blocked(id, 11_000), "到期即解禁（不是永久封禁）");
+        Assert.that(!t.blocked(id, 11_000), "到期条目已淘汰，重复查询仍放行");
+        Assert.eq(t.trackedKeys(), 0, "到期条目被淘汰，不无限增长");
+        t.mark(other, 0, 10);
+        Assert.that(t.blocked(other, 5000), "另一个 UUID 独立计时");
+        Assert.that(!t.blocked(id, 5000), "不同 UUID 互不影响");
+        t.clear();
+        Assert.that(!t.blocked(other, 5000), "clear 后解禁");
+        t.mark(other, 0, 0);
+        Assert.that(!t.blocked(other, 0), "时长 0 视为不禁止（可关闭该模式）");
+    }
+
+    // 全服闸门改动：控制台免二次验密，游戏内必须验操作者自己的密码
+    private static void testGateChangePolicy() {
+        Assert.section("AdminCommands.gateChangeAllowed");
+        Assert.that(com.yztc.auth.command.AdminCommands.gateChangeAllowed(false, false),
+                "控制台 → 免二次验密");
+        Assert.that(!com.yztc.auth.command.AdminCommands.gateChangeAllowed(true, false),
+                "游戏内未验密 → 拒绝改闸门");
+        Assert.that(com.yztc.auth.command.AdminCommands.gateChangeAllowed(true, true),
+                "游戏内验密通过 → 放行");
     }
 
     private static void testVerifyPassword() {

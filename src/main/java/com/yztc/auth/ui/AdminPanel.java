@@ -148,19 +148,27 @@ public final class AdminPanel {
 
         /** 危险操作：先开铁砧让操作者输自己密码，验过再执行。 */
         private void confirm(String hint, Runnable action) {
-            if (!viewer.isAlive()) return;
-            viewer.sendSystemMessage(Component.literal(hint));
-            viewer.sendSystemMessage(Lang.msg("confirm_prompt"));
-            AnvilInput.open(viewer, Lang.msg("confirm_prompt"), "你的密码",
-                    UiSession.open(viewer.getUUID(), pw -> {
-                        if (auth.verifyOwnPassword(viewer, pw)
-                                || Permissions.has(viewer, Permissions.BYPASS_CONFIRM, 5)) {
-                            viewer.sendSystemMessage(Lang.msg("confirm_ok"));
-                            action.run();
-                        } else {
-                            viewer.sendSystemMessage(Lang.msg("confirm_bad"));
-                        }
-                    }, () -> viewer.sendSystemMessage(Lang.msg("confirm_bad"))));
+            stepUp(viewer, auth, hint, ok -> { if (ok) action.run(); });
         }
+    }
+
+    /**
+     * 二次验密（游戏内危险操作共用）：开铁砧让操作者输入自己的密码，
+     * 把验密结果回传给 then。取消或验密失败都回传 false。
+     */
+    public static void stepUp(ServerPlayer viewer, AuthManager auth, String hint, java.util.function.Consumer<Boolean> then) {
+        if (!viewer.isAlive()) { then.accept(false); return; }
+        viewer.sendSystemMessage(Component.literal(hint));
+        viewer.sendSystemMessage(Lang.msg("confirm_prompt"));
+        AnvilInput.open(viewer, Lang.msg("confirm_prompt"), "你的密码",
+                UiSession.open(viewer.getUUID(), pw -> {
+                    boolean ok = auth.verifyOwnPassword(viewer, pw)
+                            || Permissions.has(viewer, Permissions.BYPASS_CONFIRM, 5);
+                    viewer.sendSystemMessage(Lang.msg(ok ? "confirm_ok" : "confirm_bad"));
+                    then.accept(ok);
+                }, () -> {
+                    viewer.sendSystemMessage(Lang.msg("confirm_bad"));
+                    then.accept(false);
+                }));
     }
 }

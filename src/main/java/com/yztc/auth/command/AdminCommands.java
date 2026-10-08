@@ -29,6 +29,7 @@ public final class AdminCommands {
 
     public static void attach(LiteralArgumentBuilder<CommandSourceStack> root, AuthManager auth, GateManager gate) {
         root.then(Commands.literal("admin").executes(ctx -> {
+            if (gatedOut(ctx.getSource(), auth)) return 0;
             ServerPlayer p = ctx.getSource().getPlayerOrException();
             if (!Permissions.isAdmin(p)) { ctx.getSource().sendFailure(Lang.msg("no_permission")); return 0; }
             com.yztc.auth.ui.AdminPanel.open(p.getServer(), p, auth, gate, ctx.getSource());
@@ -37,15 +38,17 @@ public final class AdminCommands {
 
         root.then(Commands.literal("migrate")
                 .requires(s -> s.hasPermission(2) || !s.isPlayer())
-                .executes(ctx -> MigrateCommand.run(ctx.getSource(), false))
-                .then(Commands.literal("--dry-run").executes(ctx -> MigrateCommand.run(ctx.getSource(), true))));
+                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0 : MigrateCommand.run(ctx.getSource(), false))
+                .then(Commands.literal("--dry-run")
+                        .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0 : MigrateCommand.run(ctx.getSource(), true))));
 
         root.then(Commands.literal("serverpassword")
                 .then(Commands.literal("set")
                         .then(Commands.argument("password", StringArgumentType.greedyString())
-                                .executes(ctx -> setGate(ctx.getSource(), gate,
-                                        StringArgumentType.getString(ctx, "password")))))
-                .then(Commands.literal("clear").executes(ctx -> clearGate(ctx.getSource(), gate))));
+                                .executes(ctx -> changeGate(ctx.getSource(), auth, gate,
+                                        StringArgumentType.getString(ctx, "password"), true))))
+                .then(Commands.literal("clear")
+                        .executes(ctx -> changeGate(ctx.getSource(), auth, gate, null, false))));
 
         // 控制台可用的管理操作（重置密码/删号/强制登录/踢出）
         root.then(Commands.literal("op")
@@ -53,43 +56,55 @@ public final class AdminCommands {
                 .then(Commands.literal("setpassword")
                         .then(Commands.argument("player", StringArgumentType.word())
                                 .then(Commands.argument("password", StringArgumentType.greedyString())
-                                        .executes(ctx -> setOtherPassword(ctx.getSource(), auth,
-                                                StringArgumentType.getString(ctx, "player"),
-                                                StringArgumentType.getString(ctx, "password"))))))
+                                        .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                                : setOtherPassword(ctx.getSource(), auth,
+                                                        StringArgumentType.getString(ctx, "player"),
+                                                        StringArgumentType.getString(ctx, "password"))))))
                 .then(Commands.literal("delete")
                         .then(Commands.argument("player", StringArgumentType.word())
-                                .executes(ctx -> deleteAccount(ctx.getSource(), StringArgumentType.getString(ctx, "player")))))
+                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                        : deleteAccount(ctx.getSource(), StringArgumentType.getString(ctx, "player")))))
                 .then(Commands.literal("forcelogin")
                         .then(Commands.argument("player", StringArgumentType.word())
-                                .executes(ctx -> forceLogin(ctx.getSource(), auth, StringArgumentType.getString(ctx, "player")))))
+                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                        : forceLogin(ctx.getSource(), auth, StringArgumentType.getString(ctx, "player")))))
                 .then(Commands.literal("kick")
                         .then(Commands.argument("player", StringArgumentType.word())
-                                .executes(ctx -> kick(ctx.getSource(), StringArgumentType.getString(ctx, "player"))))));
+                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                        : kick(ctx.getSource(), StringArgumentType.getString(ctx, "player"))))));
     }
 
-    private static int setGate(CommandSourceStack src, GateManager gate, String pw) {
-        if (src.isPlayer() && !Permissions.isGateKeeper(src.getPlayer())) {
-            src.sendFailure(Lang.msg("no_permission"));
-            return 0;
-        }
-        try {
-            gate.set(pw);
-            src.sendSuccess(() -> Component.literal("全服闸门密码已设置"), true);
-            return 1;
-        } catch (IOException e) {
-            src.sendFailure(Component.literal("写盘失败：" + e.getMessage()));
-            return 0;
-        }
+    /** 未过闸者一律拒绝（含管理员）。返回 true 表示已拒绝并已提示。 */
+    private static boolean gatedOut(CommandSourceStack src, AuthManager auth) {
+        ServerPlayer p = src.getPlayer();
+        return p != null && RootCommand.gateBlocked(p, auth);
     }
 
-    private static int clearGate(CommandSourceStack src, GateManager gate) {
-        if (src.isPlayer() && !Permissions.isGateKeeper(src.getPlayer())) {
-            src.sendFailure(Lang.msg("no_permission"));
-            return 0;
-        }
+    /** 纯逻辑：闸门改动的二次验密策略——游戏内必须验密，控制台（无玩家）免。 */
+    public static boolean gateChangeAllowed(boolean sourceIsPlayer, boolean stepUpVerified) {
+        return !sourceIsPlayer || stepUpVerified;
+    }
+
+    /** 改闸门：游戏内先二次验密（验过才落盘），控制台免。 */
+    private static int changeGate(CommandSourceStack src, AuthManager auth, GateManager gate,
+                                  String pw, boolean isSet) {
+        ServerPlayer p = src.getPlayer();
+        if (p == null) return applyGate(src, gate, pw, isSet);
+        if (!Permissions.isGateKeeper(p)) { src.sendFailure(Lang.msg("no_permission")); return 0; }
+        com.yztc.auth.ui.AdminPanel.stepUp(p, auth, isSet ? "确认修改全服闸门密码" : "确认关闭全服闸门",
+                verified -> { if (gateChangeAllowed(true, verified)) applyGate(src, gate, pw, isSet); });
+        return 1;
+    }
+
+    private static int applyGate(CommandSourceStack src, GateManager gate, String pw, boolean isSet) {
         try {
-            gate.clear();
-            src.sendSuccess(() -> Component.literal("全服闸门已关闭"), true);
+            if (isSet) {
+                gate.set(pw);
+                src.sendSuccess(() -> Component.literal("全服闸门密码已设置"), true);
+            } else {
+                gate.clear();
+                src.sendSuccess(() -> Component.literal("全服闸门已关闭"), true);
+            }
             return 1;
         } catch (IOException e) {
             src.sendFailure(Component.literal("写盘失败：" + e.getMessage()));
