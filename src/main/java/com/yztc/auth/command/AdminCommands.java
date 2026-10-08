@@ -20,6 +20,13 @@ import java.util.Locale;
 public final class AdminCommands {
     private AdminCommands() {}
 
+    private static GateManager gateRef;
+
+    /** 装配期注入，供指令注册时取同一份 GateManager。 */
+    public static void setGate(GateManager g) { gateRef = g; }
+
+    public static GateManager gate() { return gateRef; }
+
     public static void attach(LiteralArgumentBuilder<CommandSourceStack> root, AuthManager auth, GateManager gate) {
         root.then(Commands.literal("admin").executes(ctx -> {
             ServerPlayer p = ctx.getSource().getPlayerOrException();
