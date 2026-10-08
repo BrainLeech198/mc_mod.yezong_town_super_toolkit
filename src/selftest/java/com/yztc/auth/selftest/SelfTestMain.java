@@ -273,6 +273,11 @@ public final class SelfTestMain {
             String text = java.nio.file.Files.readString(toml, java.nio.charset.StandardCharsets.UTF_8);
             Assert.that(text.contains("displayTest=\"MATCH_VERSION\""),
                     "mods.toml 显式声明 displayTest=\"MATCH_VERSION\"（客户端缺少本 mod 即拒绝登入）");
+            Assert.that(text.contains("logoFile="), "mods.toml 声明 logoFile（PCL2 列表图标）");
+            Assert.that(text.contains("authors="), "mods.toml 声明 authors");
+            Assert.that(java.nio.file.Files.isRegularFile(
+                            java.nio.file.Path.of("src", "main", "resources", "logo.png")),
+                    "resources/logo.png 存在");
         } catch (Exception e) {
             Assert.that(false, "mods.toml 测试异常: " + e);
         }
