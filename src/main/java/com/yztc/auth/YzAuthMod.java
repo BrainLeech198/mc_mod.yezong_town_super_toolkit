@@ -43,22 +43,10 @@ public class YzAuthMod {
         }
         StoreHolder.set(store);
 
-        MailStore mail = new MailStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("mail.json"));
-        try {
-            mail.load();
-        } catch (IOException e) {
-            LOGGER.error("[yztauth] 加载 mail.json 失败，使用空库（旧文件保留）", e);
-        }
-        StoreHolder.setMail(mail);
-
-        LastSeenStore lastSeen = new LastSeenStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("lastseen.json"));
-        try {
-            lastSeen.load();
-        } catch (IOException e) {
-            LOGGER.error("[yztauth] 加载 lastseen.json 失败，使用空库（旧文件保留）", e);
-        }
-        StoreHolder.setLastSeen(lastSeen);
-
+        // 这里只建对象、不 load：MailStore.load 会读 SERVER 配置（超期天数），
+        // 而 SERVER 配置要等世界加载后才可用，过早调用会取不到值。真正的 load 放在 ServerStarted。
+        StoreHolder.setMail(new MailStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("mail.json")));
+        StoreHolder.setLastSeen(new LastSeenStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("lastseen.json")));
         StoreHolder.setAudit(new AuditLog(FMLPaths.GAMEDIR.get().resolve("logs").resolve("yztauth-audit.log")));
 
         GateManager gate = new GateManager(store);

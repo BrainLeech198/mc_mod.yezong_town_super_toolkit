@@ -2,6 +2,7 @@ package com.yztc.auth.auth;
 
 import com.yztc.auth.data.LastSeen;
 import com.yztc.auth.data.LastSeenStore;
+import com.yztc.auth.data.MailStore;
 import com.yztc.auth.data.StoreHolder;
 import com.yztc.auth.lockdown.LockdownSync;
 import com.yztc.auth.ui.UiSession;
@@ -24,6 +25,23 @@ public final class AuthEvents {
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent e) {
         AuthHolder.AUTH.load();
+        // SERVER 配置此时已加载，可安全读取（MailStore.load 会用到 mailExpireDays）
+        MailStore mail = StoreHolder.mail();
+        if (mail != null) {
+            try {
+                mail.load();
+            } catch (IOException ex) {
+                LOGGER.error("[yztauth] 加载 mail.json 失败，使用空库（旧文件保留）", ex);
+            }
+        }
+        LastSeenStore lastSeen = StoreHolder.lastSeen();
+        if (lastSeen != null) {
+            try {
+                lastSeen.load();
+            } catch (IOException ex) {
+                LOGGER.error("[yztauth] 加载 lastseen.json 失败，使用空库（旧文件保留）", ex);
+            }
+        }
     }
 
     @SubscribeEvent
