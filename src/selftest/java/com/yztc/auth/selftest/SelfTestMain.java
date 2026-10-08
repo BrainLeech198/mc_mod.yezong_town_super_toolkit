@@ -24,8 +24,30 @@ public final class SelfTestMain {
         testMigrateService();
         testLang();
         testGateManager();
+        testPasswordUtil();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testPasswordUtil() {
+        Assert.section("PasswordUtil");
+        var a = new com.yztc.auth.data.Account();
+        a.algo = com.yztc.auth.security.PasswordHasher.ALGO_LEGACY;
+        a.hash = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        a.failedAttempts = 3;
+        a.lockedUntil = System.currentTimeMillis() + 60_000;
+
+        com.yztc.auth.data.PasswordUtil.assign(a, "newpass", 1000);
+        Assert.eq(a.algo, "pbkdf2-sha256", "重置后算法为 pbkdf2");
+        Assert.eq(a.iterations, 1000, "重置后迭代数=入参");
+        Assert.eq(a.failedAttempts, 0, "重置清空失败计数");
+        Assert.eq(a.lockedUntil, 0, "重置解除锁定");
+        var salt = java.util.Base64.getDecoder().decode(a.salt);
+        var hash = java.util.Base64.getDecoder().decode(a.hash);
+        Assert.that(com.yztc.auth.security.PasswordHasher.verifyPbkdf2(
+                "newpass".toCharArray(), a.iterations, salt, hash), "重置后新密码校验通过");
+        Assert.that(!com.yztc.auth.security.PasswordHasher.verifyPbkdf2(
+                "oldpass".toCharArray(), a.iterations, salt, hash), "重置后旧密码不再通过");
     }
 
     // Forge 未加载时 AuthConfig 取值抛 IllegalStateException；自测内手工装载一份默认配置

@@ -16,7 +16,14 @@ public final class Assert {
     }
 
     public static void eq(Object actual, Object expected, String msg) {
-        boolean ok = (actual == null) ? expected == null : actual.equals(expected);
+        boolean ok;
+        if (actual == null || expected == null) {
+            ok = actual == expected;
+        } else if (actual instanceof Number na && expected instanceof Number ne) {
+            ok = na.doubleValue() == ne.doubleValue(); // Long(0) 与 Integer(0) 也应相等
+        } else {
+            ok = actual.equals(expected);
+        }
         that(ok, msg + " (期望=" + expected + " 实际=" + actual + ")");
     }
 
