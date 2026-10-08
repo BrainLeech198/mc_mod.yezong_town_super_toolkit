@@ -1,5 +1,6 @@
 package com.yztc.auth.selftest;
 
+import com.yztc.auth.auth.RateLimiter;
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.AccountStore;
 import com.yztc.auth.data.Gate;
@@ -17,8 +18,23 @@ public final class SelfTestMain {
 
         testPasswordHasher();
         testAccountStore();
+        testRateLimiter();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    private static void testRateLimiter() {
+        Assert.section("RateLimiter");
+        RateLimiter rl = new RateLimiter(3, 60_000);
+        Assert.that(rl.tryAcquire("1.2.3.4", 0), "第1次放行");
+        Assert.that(rl.tryAcquire("1.2.3.4", 10), "第2次放行");
+        Assert.that(rl.tryAcquire("1.2.3.4", 20), "第3次放行");
+        Assert.that(!rl.tryAcquire("1.2.3.4", 30), "第4次被限");
+        Assert.that(rl.tryAcquire("5.6.7.8", 30), "换个 IP 不受影响");
+        Assert.that(rl.retryAfterMillis("1.2.3.4", 30) > 0, "限流中 retryAfter>0");
+        Assert.that(rl.tryAcquire("1.2.3.4", 60_001), "窗口滑过后恢复");
+        rl.reset("1.2.3.4");
+        Assert.eq(rl.trackedKeys(), 1, "reset 只留另一个 key");
     }
 
     private static void testPasswordHasher() {
