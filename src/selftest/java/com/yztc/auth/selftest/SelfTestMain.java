@@ -23,10 +23,58 @@ public final class SelfTestMain {
         testRateLimiter();
         testMigrateService();
         testLang();
+        testLangKeysReferenced();
         testGateManager();
         testPasswordUtil();
 
         System.exit(Assert.summaryAndExit());
+    }
+
+    // 扫描主源码里 Lang.msg("...") / Lang.key("...") 的字面量 id，保证都已在 zh_cn 声明
+    private static void testLangKeysReferenced() {
+        Assert.section("Lang 键引用");
+        try {
+            java.nio.file.Path srcRoot = java.nio.file.Path.of("src", "main", "java");
+            Assert.that(java.nio.file.Files.isDirectory(srcRoot), "源码目录存在：" + srcRoot.toAbsolutePath());
+            java.util.Set<String> declared = langKeys("/assets/yztauth/lang/zh_cn.json");
+            java.util.Set<String> used = new java.util.TreeSet<>();
+            try (var walk = java.nio.file.Files.walk(srcRoot)) {
+                for (java.nio.file.Path f : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
+                    collectLangIds(java.nio.file.Files.readString(f, java.nio.charset.StandardCharsets.UTF_8), used);
+                }
+            }
+            Assert.that(used.size() >= 10, "扫描到足够多的语言键，防空转（实得 " + used.size() + "）");
+            java.util.List<String> missing = new java.util.ArrayList<>();
+            for (String id : used) if (!declared.contains("yztauth.msg." + id)) missing.add(id);
+            Assert.eq(missing.toString(), "[]", "源码引用的语言键都已在 zh_cn 声明");
+        } catch (Exception e) {
+            Assert.that(false, "Lang 键引用测试异常: " + e);
+        }
+    }
+
+    private static void collectLangIds(String text, java.util.Set<String> out) {
+        int i = 0;
+        while (true) {
+            int a = text.indexOf("Lang.msg(", i), b = text.indexOf("Lang.key(", i);
+            int at = (a < 0) ? b : (b < 0 ? a : Math.min(a, b));
+            if (at < 0) return;
+            int depth = 0, j = at + "Lang.msg".length();
+            StringBuilder lit = null;
+            for (; j < text.length(); j++) {
+                char c = text.charAt(j);
+                if (lit != null) {
+                    if (c == '\\') { j++; continue; }
+                    if (c == '"') { out.add(lit.toString()); lit = null; } else lit.append(c);
+                } else if (c == '"') {
+                    lit = new StringBuilder();
+                } else if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    if (--depth == 0) break;
+                }
+            }
+            i = j + 1;
+        }
     }
 
     private static void testPasswordUtil() {

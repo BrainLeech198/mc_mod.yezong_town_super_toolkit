@@ -200,6 +200,9 @@ public final class AuthManager {
         logout(p, mode);
     }
 
+    public Account accountOf(String nameLower) { return store.get(nameLower); }
+    public void persistNow() { persist(); }
+
     private void completeAuth(ServerPlayer p) {
         authenticated.add(p.getUUID());
         PendingState.ALL.remove(p.getUUID());
