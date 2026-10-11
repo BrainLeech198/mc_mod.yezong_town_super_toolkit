@@ -2,6 +2,7 @@ package com.yztc.auth.auth;
 
 import com.yztc.auth.audit.AuditLog;
 import com.yztc.auth.config.AuthConfig;
+import com.yztc.auth.broadcast.AfkBroadcast;
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.AccountStore;
 import com.yztc.auth.data.StoreHolder;
@@ -54,6 +55,7 @@ public final class AuthManager {
         lastActivityMs.clear();
         lastActivityPos.clear();
         throttle.clear();
+        AfkBroadcast.clearAll();
     }
 
     /**
@@ -168,6 +170,7 @@ public final class AuthManager {
         authenticated.remove(p.getUUID());
         lastActivityMs.remove(p.getUUID());
         lastActivityPos.remove(p.getUUID());
+        AfkBroadcast.forget(p.getUUID());
     }
 
     /** 活动刷新：位置或朝向变化则更新活动时间戳，超时则按配置登出。 */
@@ -177,11 +180,15 @@ public final class AuthManager {
         double x = p.getX(), y = p.getY(), z = p.getZ();
         float yaw = p.getYRot(), pitch = p.getXRot();
         double[] last = lastActivityPos.get(p.getUUID());
-        if (viewChanged(last, x, y, z, yaw, pitch)) {
+        boolean active = viewChanged(last, x, y, z, yaw, pitch);
+        if (active) {
             lastActivityPos.put(p.getUUID(), new double[]{x, y, z, yaw, pitch});
             lastActivityMs.put(p.getUUID(), now);
         }
         long lastMs = lastActivityMs.getOrDefault(p.getUUID(), now);
+        // 挂机/返回全服公告：独立于 AFK 自动登出（阈值更短，只播报不踢人）
+        AfkBroadcast.tick(p, active, now - lastMs, AuthConfig.afkAnnounceSeconds() * 1000L,
+                AuthConfig.afkAnnounceEnabled());
         if (afkExpired(lastMs, now, AuthConfig.afkLogoutSeconds() * 1000L, AuthConfig.afkLogoutEnabled())) {
             p.sendSystemMessage(Lang.msg("afk_logout"));
             logout(p, AuthConfig.logoutMode());
@@ -301,6 +308,7 @@ public final class AuthManager {
         authenticated.remove(p.getUUID());
         lastActivityMs.remove(p.getUUID());
         lastActivityPos.remove(p.getUUID());
+        AfkBroadcast.forget(p.getUUID());
         PendingState st = new PendingState(p); // 以当前位置为新原点
         PendingState.ALL.put(p.getUUID(), st);
         st.gatePassed = true; // 已过闸者登出后不必再过闸
@@ -405,6 +413,7 @@ public final class AuthManager {
         PendingState.ALL.remove(p.getUUID());
         lastActivityMs.put(p.getUUID(), System.currentTimeMillis());
         lastActivityPos.remove(p.getUUID());
+        AfkBroadcast.forget(p.getUUID()); // 刚刚登录不算「挂机返回」，清掉旧标记
         LockdownSync.authenticate(p);
         TabHider.reveal(p);
         com.yztc.auth.title.TitleEvents.refreshDisplay(p);

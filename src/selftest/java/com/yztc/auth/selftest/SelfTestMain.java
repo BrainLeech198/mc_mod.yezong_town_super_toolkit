@@ -62,6 +62,7 @@ public final class SelfTestMain {
         testAccountPanel();
         testMailPanel();
         testBroadcaster();
+        testAfkBroadcast();
         testRiskStore();
         testRiskLog();
         testRiskPanelDetail();
@@ -990,6 +991,8 @@ public final class SelfTestMain {
         Assert.that(com.yztc.auth.config.AuthConfig.notifyAdminOnLogin(), "notifyAdminOnLogin 默认 true");
         Assert.that(!com.yztc.auth.config.AuthConfig.afkLogoutEnabled(), "afkLogoutEnabled 默认 false");
         Assert.eq(com.yztc.auth.config.AuthConfig.afkLogoutSeconds(), 600, "afkLogoutSeconds 默认 600");
+        Assert.that(com.yztc.auth.config.AuthConfig.afkAnnounceEnabled(), "afkAnnounceEnabled 默认 true");
+        Assert.eq(com.yztc.auth.config.AuthConfig.afkAnnounceSeconds(), 180, "afkAnnounceSeconds 默认 180");
         Assert.eq(com.yztc.auth.config.AuthConfig.welcomeTitleText(), "", "welcomeTitleText 默认空");
         Assert.eq(com.yztc.auth.config.AuthConfig.welcomeSubText(), "", "welcomeSubText 默认空");
         Assert.eq(com.yztc.auth.config.AuthConfig.language(), "zh_cn", "language 默认 zh_cn");
@@ -1073,6 +1076,11 @@ public final class SelfTestMain {
         Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_confirm_give")), gold, "发放确认=金");
         Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_list_header")), aqua, "称号库标题=青");
         Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_none")), gray, "无称号=灰");
+        // 提示文本配色补正：取消输入/收到留言/已有称号/已处理标记
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("anvil_cancelled")), red, "取消输入=红");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("mail_notify", "alice")), gold, "收到新留言=金");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_already_owned")), yellow, "已有称号=黄");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("risk_handled_tag")), gray, "已处理标记=灰");
 
         try {
             java.util.Set<String> declared = langKeys("/assets/yzt_super/lang/zh_cn.json");
@@ -1260,6 +1268,9 @@ public final class SelfTestMain {
         Assert.that(unread.contains("#ab12cd") && unread.contains("alice"), "标签含 id 与发件人");
         String read = com.yztc.auth.ui.MailPanel.listLabel(m, false).getString();
         Assert.that(!read.contains("未读"), "已读无未读标记");
+        Assert.eq(com.yztc.auth.ui.MailPanel.listLabel(m, true).getSiblings().get(0)
+                        .getStyle().getColor().getValue(),
+                net.minecraft.ChatFormatting.GOLD.getColor(), "未读标记=金");
 
         var pub = new com.yztc.auth.data.Mail();
         pub.id = "ffee00"; pub.from = "carol"; pub.to = ""; pub.text = "hi all";
@@ -1344,6 +1355,60 @@ public final class SelfTestMain {
                 "hello", "玩家剥色");
         Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare("&ahello", true, 128).content(),
                 "§ahello", "管理员转 §");
+    }
+
+    // 挂机公告：状态机、变体键、消息颜色
+    private static void testAfkBroadcast() {
+        Assert.section("AfkBroadcast 挂机公告");
+        // 状态机纯逻辑
+        Assert.that(!com.yztc.auth.broadcast.AfkBroadcast.shouldEnterAway(false, 179_999, 180_000),
+                "差 1ms 不进入挂机");
+        Assert.that(com.yztc.auth.broadcast.AfkBroadcast.shouldEnterAway(false, 180_000, 180_000),
+                "到点进入挂机");
+        Assert.that(!com.yztc.auth.broadcast.AfkBroadcast.shouldEnterAway(true, 9_999_999, 180_000),
+                "已挂机不重复触发");
+        Assert.that(com.yztc.auth.broadcast.AfkBroadcast.shouldReturn(true, true), "挂机中有操作=返回");
+        Assert.that(!com.yztc.auth.broadcast.AfkBroadcast.shouldReturn(false, true), "未挂机有操作=不播报返回");
+        Assert.that(!com.yztc.auth.broadcast.AfkBroadcast.shouldReturn(true, false), "仍无操作=不播报返回");
+
+        // 变体序号与语言键
+        Assert.eq(com.yztc.auth.broadcast.AfkBroadcast.awayKey(0), "afk_away_1", "离开键 1");
+        Assert.eq(com.yztc.auth.broadcast.AfkBroadcast.backKey(5), "afk_back_6", "返回键 6");
+        Assert.eq(com.yztc.auth.broadcast.AfkBroadcast.pickVariant(0, new java.util.Random(1)), 0, "空集退回 0");
+        java.util.Random r = new java.util.Random(42);
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (int i = 0; i < 200; i++) seen.add(com.yztc.auth.broadcast.AfkBroadcast.pickVariant(6, r));
+        Assert.that(seen.stream().allMatch(v -> v >= 0 && v < 6), "随机序号均落在 [0,6)");
+        Assert.eq(seen.size(), 6, "多次抽样能覆盖全部 6 个变体");
+
+        // 每个变体键都在中英语言表声明
+        try {
+            var zh = langValues("/assets/yzt_super/lang/zh_cn.json");
+            var en = langValues("/assets/yzt_super/lang/en_us.json");
+            for (int i = 0; i < com.yztc.auth.broadcast.AfkBroadcast.AWAY_VARIANTS; i++) {
+                String k = "yzt_super.msg." + com.yztc.auth.broadcast.AfkBroadcast.awayKey(i);
+                Assert.that(zh.containsKey(k) && en.containsKey(k), "离开文案键已声明：" + k);
+            }
+            for (int i = 0; i < com.yztc.auth.broadcast.AfkBroadcast.BACK_VARIANTS; i++) {
+                String k = "yzt_super.msg." + com.yztc.auth.broadcast.AfkBroadcast.backKey(i);
+                Assert.that(zh.containsKey(k) && en.containsKey(k), "返回文案键已声明：" + k);
+            }
+            Assert.that(zh.containsKey("yzt_super.msg.afk_welcome")
+                    && en.containsKey("yzt_super.msg.afk_welcome"), "私人欢迎语键已声明");
+        } catch (Exception e) {
+            Assert.that(false, "挂机公告语言键测试异常: " + e);
+        }
+
+        // 消息构建：名字高亮 + 文案单独着色
+        var away = com.yztc.auth.broadcast.AfkBroadcast.awayMessage("Steve", 0);
+        Assert.that(away.getString().startsWith("Steve"), "离开消息以玩家名开头：" + away.getString());
+        Assert.eq(colorOf(away), net.minecraft.ChatFormatting.GOLD.getColor(), "离开名字=金色");
+        Assert.eq(colorOf(away.getSiblings().get(1)), net.minecraft.ChatFormatting.GRAY.getColor(), "离开文案=灰色");
+        var back = com.yztc.auth.broadcast.AfkBroadcast.backMessage("Steve", 0);
+        Assert.eq(colorOf(back), net.minecraft.ChatFormatting.GREEN.getColor(), "返回名字=绿色");
+        Assert.eq(colorOf(back.getSiblings().get(1)), net.minecraft.ChatFormatting.YELLOW.getColor(), "返回文案=黄色");
+        Assert.eq(colorOf(com.yztc.auth.broadcast.AfkBroadcast.welcomeMessage()),
+                net.minecraft.ChatFormatting.GREEN.getColor(), "私人欢迎语=绿色");
     }
 
     // 高风险记录库：id 分配、待处理计数、标记处理、重复标记、上限裁剪

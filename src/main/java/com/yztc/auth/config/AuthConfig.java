@@ -33,6 +33,8 @@ public final class AuthConfig {
     public static boolean notifyAdminOnLogin()     { return V.notifyAdminOnLogin.get(); }
     public static boolean afkLogoutEnabled()       { return V.afkLogoutEnabled.get(); }
     public static int afkLogoutSeconds()           { return V.afkLogoutSeconds.get(); }
+    public static boolean afkAnnounceEnabled()     { return V.afkAnnounceEnabled.get(); }
+    public static int afkAnnounceSeconds()         { return V.afkAnnounceSeconds.get(); }
     public static String welcomeTitleText()        { return V.welcomeTitleText.get(); }
     public static String welcomeSubText()          { return V.welcomeSubText.get(); }
     public static boolean startupBanner()          { return V.startupBanner.get(); }
@@ -66,6 +68,8 @@ public final class AuthConfig {
         final ForgeConfigSpec.BooleanValue notifyAdminOnLogin;
         final ForgeConfigSpec.BooleanValue afkLogoutEnabled;
         final ForgeConfigSpec.IntValue afkLogoutSeconds;
+        final ForgeConfigSpec.BooleanValue afkAnnounceEnabled;
+        final ForgeConfigSpec.IntValue afkAnnounceSeconds;
         final ForgeConfigSpec.ConfigValue<String> welcomeTitleText;
         final ForgeConfigSpec.ConfigValue<String> welcomeSubText;
         final ForgeConfigSpec.BooleanValue startupBanner;
@@ -117,6 +121,11 @@ public final class AuthConfig {
             startupBanner      = b.comment("开服时打印启动横幅（控制台 + 首个管理员进服）").define("startupBanner", true);
             serverName         = b.comment("横幅品牌行显示的服务器名（空=不显示品牌行）").define("serverName", "");
             language           = b.comment("服务器兜底语言（原版客户端显示用）：zh_cn | en_us").define("language", "zh_cn");
+            b.pop();
+
+            b.comment("挂机公告").push("afkAnnounce");
+            afkAnnounceEnabled = b.comment("挂机/返回全服公告（默认开）").define("enabled", true);
+            afkAnnounceSeconds = b.comment("挂机判定秒数（超过则在聊天栏全服公告）").defineInRange("seconds", 180, 30, 86400);
             b.pop();
 
             b.comment("大喇叭").push("broadcast");

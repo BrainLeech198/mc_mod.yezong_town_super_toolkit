@@ -232,11 +232,16 @@ public final class MailPanel {
 
     // ===== 纯逻辑 =====
 
-    /** 纯逻辑：列表条目标签（未读前置「[未读]」标记；公开条目青色）。 */
+    /** 纯逻辑：列表条目标签（未读前置金色「[未读]」标记；正文公开条目青色、私信灰色）。 */
     public static Component listLabel(Mail m, boolean unread) {
-        String tag = unread ? ServerLang.template("mail_unread_tag") + " " : "";
-        return Component.literal(tag + "#" + m.id + " " + m.from + ": " + m.text)
-                .withStyle(m.isPublic ? ChatFormatting.AQUA : ChatFormatting.GRAY);
+        MutableComponent label = Component.empty();
+        if (unread) {
+            label.append(Component.literal(ServerLang.template("mail_unread_tag") + " ")
+                    .withStyle(ChatFormatting.GOLD));
+        }
+        label.append(Component.literal("#" + m.id + " " + m.from + ": " + m.text)
+                .withStyle(m.isPublic ? ChatFormatting.AQUA : ChatFormatting.GRAY));
+        return label;
     }
 
     /** 纯逻辑：一条留言 → 四行详情（发件人 / 收件人 / 时间 / 内容；空值回退「—」）。 */
