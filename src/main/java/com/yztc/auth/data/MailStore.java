@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** 留言库（config/yztauth/mail.json）。写盘方式与 AccountStore 一致：.tmp 原子落盘 + .bak 备份。 */
+/** 留言库（config/yzt_super/mail.json）。写盘方式与 AccountStore 一致：.tmp 原子落盘 + .bak 备份。 */
 public final class MailStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 

@@ -23,7 +23,10 @@ public final class SelfTestMain {
         testRateLimiter();
         testMigrateService();
         testLang();
+        testServerLang();
+        testMessageColors();
         testLangKeysReferenced();
+        testServerLangReferences();
         testGateManager();
         testPasswordUtil();
         testUiSession();
@@ -42,12 +45,26 @@ public final class SelfTestMain {
         testPasswordStrength();
         testAuditLog();
         testMailStore();
+        testTitleStore();
+        testTitleService();
         testLastSeenStore();
         testAuthPure();
         testTabHider();
         testLocationPure();
         testStatusRender();
         testMailCommand();
+        testBanner();
+        testChatBox();
+        testLoginBoard();
+        testButtonPanel();
+        testTitlePanel();
+        testAdminPanel();
+        testAccountPanel();
+        testMailPanel();
+        testBroadcaster();
+        testRiskStore();
+        testRiskLog();
+        testRiskPanelDetail();
 
         System.exit(Assert.summaryAndExit());
     }
@@ -140,7 +157,7 @@ public final class SelfTestMain {
     private static void testVerifyPassword() {
         Assert.section("AuthManager.verifyPassword");
         try {
-            Path dir = Files.createTempDirectory("yztauth-vpw");
+            Path dir = Files.createTempDirectory("yzt_super-vpw");
             AccountStore store = new AccountStore(dir.resolve("users.json"));
             store.load();
             var auth = new com.yztc.auth.auth.AuthManager(
@@ -169,24 +186,44 @@ public final class SelfTestMain {
     private static void testChatPrompt() {
         Assert.section("ChatPrompt");
         var btn = com.yztc.auth.ui.ChatPrompt.button(
-                net.minecraft.network.chat.Component.literal("▶ 点这里登录"), "/yztauth login ");
+                net.minecraft.network.chat.Component.literal("▶ 点这里登录"), "/yzts login ");
         var style = btn.getStyle();
         Assert.that(style.getClickEvent() != null, "按钮带 clickEvent");
         Assert.eq(style.getClickEvent().getAction(),
                 net.minecraft.network.chat.ClickEvent.Action.SUGGEST_COMMAND, "clickEvent 动作为 suggest_command");
-        Assert.eq(style.getClickEvent().getValue(), "/yztauth login ", "clickEvent 值为建议命令");
+        Assert.eq(style.getClickEvent().getValue(), "/yzts login ", "clickEvent 值为建议命令");
         Assert.that(style.getHoverEvent() != null, "按钮带 hoverEvent");
         Assert.eq(style.getHoverEvent().getAction(),
                 net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT, "hoverEvent 动作为 show_text");
-        Assert.eq(btn.getString(), "▶ 点这里登录", "按钮文本保留");
+        Assert.eq(btn.getString(), "[▶ 点这里登录]", "按钮文本用方括号括出");
         Assert.eq(style.getColor().getValue(),
                 net.minecraft.ChatFormatting.GREEN.getColor().intValue(), "按钮为绿色");
         Assert.that(style.isUnderlined(), "按钮带下划线");
 
+        // 回归：标签须保留原始组件（translatable-with-fallback），不得在服务端 getString() 压平。
+        // 专用服务器由 Forge 预载本 mod 的 en_us，压平即恒为英文——既非玩家语言，也非服务端兜底语言。
+        var trLabel = net.minecraft.network.chat.Component.translatableWithFallback(
+                "yzt_super.msg.btn_view", "View");
+        var trBtn = com.yztc.auth.ui.ChatPrompt.button(trLabel, "/yzts mail list");
+        Assert.eq(trBtn.getString(), "[View]", "压平兜底：自测环境无语言键，getString 取 fallback");
+        Assert.that(trBtn.getSiblings().stream().anyMatch(
+                        c -> c.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents),
+                "按钮保留可翻译组件（交由客户端本地化，不服务端压平）");
+
         var plain = net.minecraft.network.chat.Component.literal("x");
-        var styled = com.yztc.auth.ui.ChatPrompt.button(plain, "/yztauth help");
+        var styled = com.yztc.auth.ui.ChatPrompt.button(plain, "/yzts help");
         Assert.that(plain.getStyle().getClickEvent() == null, "原组件不被就地修改（copy 后再套样式）");
         Assert.that(styled.getStyle().getClickEvent() != null, "样式只作用于副本");
+
+        // runButton：点击即执行（用于打开 GUI），动作为 run_command
+        var run = com.yztc.auth.ui.ChatPrompt.runButton(
+                net.minecraft.network.chat.Component.literal("写信"), "/yzts mail send");
+        Assert.eq(run.getStyle().getClickEvent().getAction(),
+                net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND, "runButton 动作为 run_command");
+        Assert.eq(run.getStyle().getClickEvent().getValue(), "/yzts mail send", "runButton 值为执行命令");
+        Assert.eq(run.getStyle().getColor().getValue(),
+                net.minecraft.ChatFormatting.GREEN.getColor().intValue(), "runButton 为绿色");
+        Assert.that(run.getStyle().isUnderlined(), "runButton 带下划线");
     }
 
     // 未登录玩家只放行认证入口指令，其余一律拦截（安全漏洞修复）
@@ -195,21 +232,21 @@ public final class SelfTestMain {
         Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/login secret"), "裸 /login 放行");
         Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/register secret"), "裸 /register 放行");
         Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("login secret"), "无斜杠 login 也放行");
-        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth gate secret"), "/yztauth gate 放行");
-        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth login secret"), "/yztauth login 放行");
-        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth register secret"), "/yztauth register 放行");
-        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth help"), "/yztauth help 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts gate secret"), "/yzts gate 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts login secret"), "/yzts login 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts register secret"), "/yzts register 放行");
+        Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts help"), "/yzts help 放行");
         Assert.that(com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("minecraft:login secret"), "带命名空间的 login 放行");
 
-        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth logout"), "登出被拦");
-        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth changepassword a b"), "改密被拦");
-        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth admin"), "管理面板被拦");
-        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth serverpassword set x"), "改闸门被拦");
-        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth op delete alice"), "管理操作被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts logout"), "登出被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts account changepassword a b"), "改密被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts admin"), "管理面板被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts admin serverpassword set x"), "改闸门被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts admin delete alice"), "管理操作被拦");
         Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/gamemode creative"), "原版指令被拦");
         Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/op alice"), "OP 被拦");
         Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/say hi"), "聊天类指令被拦");
-        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yztauth"), "裸 /yztauth 被拦");
+        Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("/yzts"), "裸 /yzts 被拦");
         Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked(""), "空串被拦");
         Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked("   "), "纯空白被拦");
         Assert.that(!com.yztc.auth.lockdown.LockdownHandler.allowedWhileLocked(null), "null 被拦");
@@ -236,15 +273,30 @@ public final class SelfTestMain {
         Assert.eq(gateSub.getStyle().getColor().getValue(), yellow, "闸门副标题为黄色");
 
         var loginBtn = com.yztc.auth.ui.WelcomeSync.button(false, true);
-        Assert.eq(loginBtn.getStyle().getColor().getValue(), green, "登录按钮为绿色");
-        Assert.that(loginBtn.getStyle().isUnderlined(), "登录按钮带下划线");
-        Assert.that(loginBtn.getStyle().getClickEvent() != null, "登录按钮可点击");
-        Assert.eq(loginBtn.getStyle().getClickEvent().getValue(), "/yztauth login ", "登录按钮建议命令正确");
+        Assert.that(loginBtn.getString().contains("需要登录"), "登录按钮前缀含“需要登录”");
+        Assert.that(loginBtn.getString().contains("【GUI界面】"), "登录按钮含【GUI界面】片段");
+        Assert.that(loginBtn.getString().contains("【指令操作】"), "登录按钮含【指令操作】片段");
+        var guiSeg = loginBtn.getSiblings().get(0);
+        Assert.eq(guiSeg.getStyle().getClickEvent().getAction(),
+                net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                "【GUI界面】片段点击即执行（弹铁砧框）");
+        Assert.eq(guiSeg.getStyle().getClickEvent().getValue(), "/yzts login",
+                "【GUI界面】片段命令正确（无参数=开 GUI）");
+        var cmdSeg = loginBtn.getSiblings().get(2);
+        Assert.eq(cmdSeg.getStyle().getClickEvent().getAction(),
+                net.minecraft.network.chat.ClickEvent.Action.SUGGEST_COMMAND,
+                "【指令操作】片段为 suggest_command（填入命令）");
+        Assert.eq(cmdSeg.getStyle().getClickEvent().getValue(), "/yzts login ",
+                "【指令操作】片段命令正确（待补密码）");
 
         var regBtn = com.yztc.auth.ui.WelcomeSync.button(false, false);
-        Assert.eq(regBtn.getStyle().getClickEvent().getValue(), "/yztauth register ", "注册按钮建议命令正确");
+        Assert.that(regBtn.getString().contains("需要注册"), "注册按钮前缀含“需要注册”");
+        Assert.eq(regBtn.getSiblings().get(0).getStyle().getClickEvent().getValue(), "/yzts register",
+                "注册【GUI界面】命令正确");
         var gateBtn = com.yztc.auth.ui.WelcomeSync.button(true, false);
-        Assert.eq(gateBtn.getStyle().getClickEvent().getValue(), "/yztauth gate ", "闸门按钮建议命令正确");
+        Assert.that(gateBtn.getString().contains("需要全服密码"), "闸门按钮前缀含“需要全服密码”");
+        Assert.eq(gateBtn.getSiblings().get(0).getStyle().getClickEvent().getValue(), "/yzts gate",
+                "闸门【GUI界面】命令正确");
 
         // 修复点：聊天栏按钮文本必须与副标题不同（此前副标题被错当聊天栏内容）
         Assert.that(!loginBtn.getString().equals(loginSub.getString()),
@@ -264,15 +316,17 @@ public final class SelfTestMain {
         Assert.that(com.yztc.auth.auth.AuthManager.flashDue(1000 + iv * 3, 1000, iv), "超过间隔仍闪");
     }
 
-    // mods.toml 必须显式要求客户端装有本 mod（版本匹配），否则裸指令/翻译会缺失
+    // mods.toml 声明仅服务端 mod：未装本 mod 的原版客户端也能进服（提示走服务端兜底文本）
     private static void testModsToml() {
         Assert.section("mods.toml displayTest");
         try {
             java.nio.file.Path toml = java.nio.file.Path.of("src", "main", "resources", "META-INF", "mods.toml");
             Assert.that(java.nio.file.Files.isRegularFile(toml), "mods.toml 存在：" + toml.toAbsolutePath());
             String text = java.nio.file.Files.readString(toml, java.nio.charset.StandardCharsets.UTF_8);
-            Assert.that(text.contains("displayTest=\"MATCH_VERSION\""),
-                    "mods.toml 显式声明 displayTest=\"MATCH_VERSION\"（客户端缺少本 mod 即拒绝登入）");
+            Assert.that(text.contains("displayTest=\"IGNORE_SERVER_VERSION\""),
+                    "mods.toml 声明 displayTest=\"IGNORE_SERVER_VERSION\"（原版客户端可不装本 mod）");
+            Assert.that(!text.contains("displayTest=\"MATCH_VERSION\""),
+                    "mods.toml 不再强制版本匹配（否则原版客户端被拒）");
             Assert.that(text.contains("logoFile="), "mods.toml 声明 logoFile（PCL2 列表图标）");
             Assert.that(text.contains("authors="), "mods.toml 声明 authors");
             Assert.that(java.nio.file.Files.isRegularFile(
@@ -294,17 +348,27 @@ public final class SelfTestMain {
         var s = com.yztc.auth.ui.WelcomeSync.welcomeSub("Alice");
         Assert.eq(s.getStyle().getColor().getValue(), yellow, "欢迎副标题为黄色");
         var contents = (net.minecraft.network.chat.contents.TranslatableContents) s.getContents();
-        Assert.eq(contents.getKey(), "yztauth.msg.welcome.sub", "欢迎副标题键正确");
+        Assert.eq(contents.getKey(), "yzt_super.msg.welcome.sub", "欢迎副标题键正确");
         Assert.that(java.util.Arrays.asList(contents.getArgs()).contains("Alice"), "欢迎副标题带上玩家名");
 
         var suffixC = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.ui.WelcomeSync.countdownSuffix(123).getContents();
-        Assert.eq(suffixC.getKey(), "yztauth.msg.prompt_countdown", "倒计时后缀键");
+        Assert.eq(suffixC.getKey(), "yzt_super.msg.prompt_countdown", "倒计时后缀键");
         Assert.that(java.util.Arrays.asList(suffixC.getArgs()).contains(123L), "倒计时带秒数");
+
+        // #36：倒计时挂在主标题之后，而非副标题
+        var titled = com.yztc.auth.ui.WelcomeSync.titledWithCountdown(
+                com.yztc.auth.ui.WelcomeSync.title(false), 45);
+        var titledRoot = (net.minecraft.network.chat.contents.TranslatableContents) titled.getContents();
+        Assert.eq(titledRoot.getKey(), "yzt_super.msg.prompt_login.title", "主标题仍是登录标题");
+        Assert.that(!titled.getSiblings().isEmpty(), "倒计时作为子组件挂到主标题");
+        var childC = (net.minecraft.network.chat.contents.TranslatableContents)
+                titled.getSiblings().get(0).getContents();
+        Assert.eq(childC.getKey(), "yzt_super.msg.prompt_countdown", "子组件为倒计时键");
 
         var fj = com.yztc.auth.ui.WelcomeSync.firstJoinMessage("Bob");
         var fjc = (net.minecraft.network.chat.contents.TranslatableContents) fj.getContents();
-        Assert.eq(fjc.getKey(), "yztauth.msg.first_join_broadcast", "首进广播键");
+        Assert.eq(fjc.getKey(), "yzt_super.msg.first_join_broadcast", "首进广播键");
         Assert.that(java.util.Arrays.asList(fjc.getArgs()).contains("Bob"), "首进广播带名字");
 
         var wt = com.yztc.auth.ui.WelcomeSync.resolveWelcomeTitle("自定义标题");
@@ -312,7 +376,7 @@ public final class SelfTestMain {
         Assert.eq(wt.getStyle().getColor().getValue(), gold, "自定义标题仍为金色");
         var wtDefault = com.yztc.auth.ui.WelcomeSync.resolveWelcomeTitle("");
         var wtDefaultC = (net.minecraft.network.chat.contents.TranslatableContents) wtDefault.getContents();
-        Assert.eq(wtDefaultC.getKey(), "yztauth.msg.welcome.title", "空配置回退语言键");
+        Assert.eq(wtDefaultC.getKey(), "yzt_super.msg.welcome.title", "空配置回退语言键");
         var ws = com.yztc.auth.ui.WelcomeSync.resolveWelcomeSub("你好 %s", "Amy");
         Assert.that(ws.getString().contains("Amy"), "自定义副标题替换 %s");
     }
@@ -333,7 +397,7 @@ public final class SelfTestMain {
         Assert.eq(ln, "2026-10-09 01:02:03 | alice | 1.2.3.4 | LOGIN_FAIL", "审计行格式");
         Assert.that(!ln.contains("hunter2"), "审计行不含明文");
         try {
-            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-audit");
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yzt_super-audit");
             java.nio.file.Path f = dir.resolve("audit.log");
             var a = new com.yztc.auth.audit.AuditLog(f);
             a.append(ln);
@@ -375,7 +439,7 @@ public final class SelfTestMain {
         Assert.that(com.yztc.auth.data.MailStore.canDelete(pub, "alice", false), "作者可删公开");
         Assert.that(!com.yztc.auth.data.MailStore.canDelete(pub, "bob", false), "非作者不可删公开");
         try {
-            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-mail");
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yzt_super-mail");
             long now = System.currentTimeMillis();
             var s = new com.yztc.auth.data.MailStore(dir.resolve("mail.json"));
             s.load();
@@ -403,10 +467,164 @@ public final class SelfTestMain {
         }
     }
 
+    // 称号库：定义增删、owned 增减、selected 切换、回收清 selected、落盘 round-trip
+    private static void testTitleStore() {
+        Assert.section("TitleStore");
+        try {
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yzt_super-title");
+            var s = new com.yztc.auth.title.TitleStore(dir.resolve("titles.json"));
+            s.load();
+
+            // define / def
+            s.define("elder", "长老", "GOLD");
+            s.define("newbie", "新人", "GRAY");
+            Assert.eq(s.definitions().size(), 2, "两条定义");
+            Assert.eq(s.def("elder").text, "长老", "elder 文字");
+            Assert.eq(s.def("elder").color, "GOLD", "elder 颜色");
+            Assert.eq(s.def("nosuch"), null, "未知 id 返回 null");
+
+            // give / ownedOf（大小写归一由调用方负责，store 收到什么存什么）
+            s.give("steve", "elder");
+            s.give("steve", "newbie");
+            s.give("steve", "elder"); // 幂等
+            Assert.eq(s.ownedOf("steve").size(), 2, "重复 give 不重复计");
+            Assert.that(s.ownedOf("steve").contains("elder"), "steve 有 elder");
+            Assert.that(s.ownedOf("steve").contains("newbie"), "steve 有 newbie");
+            Assert.eq(s.ownedOf("alex").size(), 0, "未给玩家空集合");
+
+            // select / selectedOf
+            s.select("steve", "elder");
+            Assert.eq(s.selectedOf("steve"), "elder", "选中 elder");
+            s.clearSelected("steve");
+            Assert.eq(s.selectedOf("steve"), "", "清空后为空串");
+
+            // take：回收正在显示的称号时自动清 selected（Review Focus #2）
+            s.select("steve", "elder");
+            s.take("steve", "elder");
+            Assert.that(!s.ownedOf("steve").contains("elder"), "回收后 owned 不含 elder");
+            Assert.eq(s.selectedOf("steve"), "", "回收 selected 称号后 selected 清空");
+            Assert.that(s.ownedOf("steve").contains("newbie"), "newbie 不受影响");
+
+            // undefine
+            s.undefine("newbie");
+            Assert.eq(s.def("newbie"), null, "undefine 后 def 为 null");
+            Assert.that(s.ownedOf("steve").contains("newbie"), "undefine 不改 owned（显示时跳过）");
+
+            // round-trip
+            s.define("elder", "长老", "GOLD");
+            s.give("steve", "elder");
+            s.select("steve", "elder");
+            s.save();
+            var s2 = new com.yztc.auth.title.TitleStore(dir.resolve("titles.json"));
+            s2.load();
+            Assert.eq(s2.definitions().size(), 1, "重载 1 条定义");
+            Assert.eq(s2.def("elder").text, "长老", "重载文字对");
+            Assert.that(s2.ownedOf("steve").contains("elder"), "重载 owned 对");
+            Assert.eq(s2.selectedOf("steve"), "elder", "重载 selected 对");
+        } catch (Exception e) {
+            Assert.that(false, "TitleStore 测试异常: " + e);
+        }
+    }
+
+    // 称号纯逻辑：前缀拼接、选用/发放校验、颜色映射、显示策略
+    private static void testTitleService() {
+        Assert.section("TitleService");
+        var defs = new java.util.HashMap<String, com.yztc.auth.title.TitleDef>();
+        var elder = new com.yztc.auth.title.TitleDef();
+        elder.id = "elder"; elder.text = "长老"; elder.color = "GOLD";
+        defs.put("elder", elder);
+        var newbie = new com.yztc.auth.title.TitleDef();
+        newbie.id = "newbie"; newbie.text = "新人"; newbie.color = "GRAY";
+        defs.put("newbie", newbie);
+
+        // validId
+        Assert.that(com.yztc.auth.title.TitleService.validId("elder"), "合法 id");
+        Assert.that(!com.yztc.auth.title.TitleService.validId(""), "空 id 非法");
+        Assert.that(!com.yztc.auth.title.TitleService.validId(null), "null id 非法");
+        Assert.that(!com.yztc.auth.title.TitleService.validId("abcdefghijklmnopq"), "超 16 非法");
+
+        // canSelect / canGive / canTake
+        var owned = java.util.Set.of("elder", "newbie");
+        Assert.that(com.yztc.auth.title.TitleService.canSelect("elder", owned, defs), "owned 含 id 可选");
+        Assert.that(!com.yztc.auth.title.TitleService.canSelect("gone", owned, defs), "owned 不含不可选");
+        Assert.that(com.yztc.auth.title.TitleService.canGive("arch", owned), "未拥有可发放");
+        Assert.that(!com.yztc.auth.title.TitleService.canGive("elder", owned), "已拥有不可再发");
+        Assert.that(com.yztc.auth.title.TitleService.canTake("elder", owned), "已拥有可回收");
+        Assert.that(!com.yztc.auth.title.TitleService.canTake("gone", owned), "未拥有不可回收");
+        Assert.that(!com.yztc.auth.title.TitleService.canGive("", owned), "空 id 不可发");
+
+        // colorOf
+        Assert.eq(com.yztc.auth.title.TitleService.colorOf("GOLD"), net.minecraft.ChatFormatting.GOLD, "GOLD");
+        Assert.eq(com.yztc.auth.title.TitleService.colorOf("red"), net.minecraft.ChatFormatting.RED, "小写也认");
+        Assert.eq(com.yztc.auth.title.TitleService.colorOf("bogus"), net.minecraft.ChatFormatting.GOLD,
+                "非法颜色名默认 GOLD（Review Focus #5）");
+        Assert.eq(com.yztc.auth.title.TitleService.colorOf(null), net.minecraft.ChatFormatting.GOLD, "null 默认 GOLD");
+
+        // prefixFor：有 selected → text· 组件；无/未知 → empty
+        var p = com.yztc.auth.title.TitleService.prefixFor("elder", defs);
+        Assert.eq(p.getString(), "长老·", "前缀 = 文字 + 间隔号");
+        Assert.eq(p.getSiblings().size(), 0, "前缀无多余兄弟");
+        Assert.eq(com.yztc.auth.title.TitleService.prefixFor("", defs).getString(), "", "空 selected 空前缀");
+        Assert.eq(com.yztc.auth.title.TitleService.prefixFor(null, defs).getString(), "", "null selected 空前缀");
+        Assert.eq(com.yztc.auth.title.TitleService.prefixFor("gone", defs).getString(), "",
+                "未知 id 空前缀（Review Focus #4）");
+
+        // formatChat：prefix + name + ": " + text
+        var chat = com.yztc.auth.title.TitleService.formatChat("Steve", "elder", defs, "大家好");
+        Assert.eq(chat.getString(), "长老·Steve: 大家好", "聊天行拼接");
+        var chatNone = com.yztc.auth.title.TitleService.formatChat("Steve", "", defs, "hi");
+        Assert.eq(chatNone.getString(), "Steve: hi", "无称号聊天行");
+
+        // formatDisplay：prefix + name
+        var disp = com.yztc.auth.title.TitleService.formatDisplay("Steve", "elder", defs);
+        Assert.eq(disp.getString(), "长老·Steve", "头顶/Tab 显示");
+
+        // shouldShowTitle：未登录不显示（Review Focus #1）
+        Assert.that(com.yztc.auth.title.TitleService.shouldShowTitle(true, "elder"), "已登录有称号显示");
+        Assert.that(!com.yztc.auth.title.TitleService.shouldShowTitle(false, "elder"), "未登录不显示");
+        Assert.that(!com.yztc.auth.title.TitleService.shouldShowTitle(true, ""), "无称号不显示");
+        Assert.that(!com.yztc.auth.title.TitleService.shouldShowTitle(true, null), "null 称号不显示");
+
+        // normalizeName（Review Focus #3）
+        Assert.eq(com.yztc.auth.title.TitleService.normalizeName("Steve"), "steve", "归一小写");
+        Assert.eq(com.yztc.auth.title.TitleService.normalizeName("  Alex "), "alex", "去空白 + 小写");
+        Assert.eq(com.yztc.auth.title.TitleService.normalizeName(null), "", "null 归空串");
+
+        // 命令边界：define 时颜色校验
+        Assert.that(com.yztc.auth.title.TitleService.validId("elder"), "define id 合法");
+        Assert.that(!com.yztc.auth.title.TitleService.validId("this_is_way_too_long_for_an_id"), "define id 超长拒");
+        // give/take 的目标名归一
+        Assert.eq(com.yztc.auth.title.TitleService.normalizeName("Steve"), "steve", "give 目标归一");
+
+        // list 行：id / 文字 / 颜色 / 已获人数（spec §6）
+        var line = com.yztc.auth.title.TitleService.listLine(elder, 3);
+        Assert.that(line.contains("elder"), "list 行含 id");
+        Assert.that(line.contains("长老"), "list 行含文字");
+        Assert.that(line.contains("GOLD"), "list 行含颜色名");
+        Assert.that(line.contains("3"), "list 行含已获人数");
+
+        // isDefined：give 只收已定义 id
+        Assert.that(com.yztc.auth.title.TitleService.isDefined("elder", defs), "已定义 id");
+        Assert.that(!com.yztc.auth.title.TitleService.isDefined("ghost", defs), "未定义 id 不可发");
+        Assert.that(!com.yztc.auth.title.TitleService.isDefined(null, defs), "null id 不可发");
+
+        // canSelect 须同时已定义：undefine 后 owned 残留 id 不可选（set 拒绝）
+        Assert.that(com.yztc.auth.title.TitleService.canSelect("elder", owned, defs), "owned+defined 可选");
+        Assert.that(!com.yztc.auth.title.TitleService.canSelect("newbie", java.util.Set.of("newbie"), java.util.Map.of("elder", elder)),
+                "owned 但未定义不可选");
+        Assert.that(!com.yztc.auth.title.TitleService.canSelect("ghost", owned, defs), "未拥有且未定义不可选");
+
+        // hasSelected：clear 未选中时提示「当前没有称号」而非「已取消」
+        Assert.that(com.yztc.auth.title.TitleService.hasSelected("elder"), "有选中");
+        Assert.that(!com.yztc.auth.title.TitleService.hasSelected(""), "空串无选中");
+        Assert.that(!com.yztc.auth.title.TitleService.hasSelected(null), "null 无选中");
+        Assert.that(!com.yztc.auth.title.TitleService.hasSelected("   "), "空白无选中");
+    }
+
     private static void testLastSeenStore() {
         Assert.section("LastSeenStore");
         try {
-            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-ls");
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yzt_super-ls");
             var f = dir.resolve("lastseen.json");
             var s = new com.yztc.auth.data.LastSeenStore(f);
             s.load();
@@ -474,72 +692,182 @@ public final class SelfTestMain {
         s.name = "alice"; s.dimension = "minecraft:overworld"; s.x = 1.5; s.y = 64; s.z = -2.5; s.at = 0;
         var tc = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.LocationCommand.whereText(s, "alice").getContents();
-        Assert.eq(tc.getKey(), "yztauth.msg.where_result", "where 文本键");
+        Assert.eq(tc.getKey(), "yzt_super.msg.where_result", "where 文本键");
         Assert.that(java.util.Arrays.asList(tc.getArgs()).contains("1.5"), "where 文本含坐标");
         // M2：查无记录时回显玩家真正输入的名字，而不是占位符
         var none = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.LocationCommand.whereText(null, "bob").getContents();
-        Assert.eq(none.getKey(), "yztauth.msg.where_none", "无记录用 where_none");
+        Assert.eq(none.getKey(), "yzt_super.msg.where_none", "无记录用 where_none");
         Assert.that(java.util.Arrays.asList(none.getArgs()).contains("bob"), "where_none 回显查询真名");
         // M3：记录存在但维度不可用时，用专门的 tp 文案，而非复用 where_none
         var badDim = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.LocationCommand.tpFailText(s, "alice").getContents();
-        Assert.eq(badDim.getKey(), "yztauth.msg.tp_bad_dimension", "维度不可用专用文案");
+        Assert.eq(badDim.getKey(), "yzt_super.msg.tp_bad_dimension", "维度不可用专用文案");
         var missing = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.LocationCommand.tpFailText(null, "alice").getContents();
-        Assert.eq(missing.getKey(), "yztauth.msg.where_none", "tp 记录缺失仍用 where_none");
+        Assert.eq(missing.getKey(), "yzt_super.msg.where_none", "tp 记录缺失仍用 where_none");
     }
 
     private static void testStatusRender() {
         Assert.section("StatusCommand");
         var c = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.StatusCommand.render(new String[]{"alice", "bob"}, 5).getContents();
-        Assert.eq(c.getKey(), "yztauth.msg.status_line", "状态键");
+        Assert.eq(c.getKey(), "yzt_super.msg.status_line", "状态键");
         var args = java.util.Arrays.asList(c.getArgs());
         Assert.that(args.contains("5"), "含在线人数");
         Assert.that(args.stream().anyMatch(a -> String.valueOf(a).contains("alice")), "含未登录名单");
         var c2 = (net.minecraft.network.chat.contents.TranslatableContents)
                 com.yztc.auth.command.StatusCommand.render(new String[0], 0).getContents();
-        Assert.eq(c2.getKey(), "yztauth.msg.status_line", "空名单也给文本");
+        Assert.eq(c2.getKey(), "yzt_super.msg.status_line", "空名单也给文本");
     }
 
     private static void testMailCommand() {
         Assert.section("MailCommand.validRecipient");
-        Assert.that(com.yztc.auth.command.MailCommand.validRecipient("bob", "alice"), "正常收件人");
-        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("alice", "alice"), "不能发给自己");
-        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("", "alice"), "空名不合法");
-        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("abcdefghijklmnopq", "alice"), "超 16 不合法");
-        Assert.that(com.yztc.auth.command.MailCommand.validRecipient("Bob", "alice"), "大小写不敏感");
-        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("Alice", "alice"), "自己大小写变体也拒");
+        var reg = java.util.Set.of("bob", "carol");
+        Assert.that(com.yztc.auth.command.MailCommand.validRecipient("bob", "alice", reg), "已注册收件人");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("dave", "alice", reg), "未注册收件人被拒");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("alice", "alice", reg), "不能发给自己");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("", "alice", reg), "空名不合法");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("abcdefghijklmnopq", "alice", reg), "超 16 不合法");
+        Assert.that(com.yztc.auth.command.MailCommand.validRecipient("Bob", "alice", reg), "大小写不敏感");
+        Assert.that(!com.yztc.auth.command.MailCommand.validRecipient("Alice", "alice", reg), "自己大小写变体也拒");
+    }
+
+    private static void testBanner() {
+        Assert.section("Banner");
+        // 宽度：全角算 2，半角算 1，框线算 1
+        Assert.eq(com.yztc.auth.ui.Banner.displayWidth("abc"), 3, "ASCII 宽 3");
+        Assert.eq(com.yztc.auth.ui.Banner.displayWidth("野棕乡"), 6, "中文宽 6");
+        Assert.eq(com.yztc.auth.ui.Banner.displayWidth("YztAuth"), 7, "英文宽 7");
+        Assert.eq(com.yztc.auth.ui.Banner.displayWidth("║ ═ ╗"), 5, "框线按半角算");
+        Assert.eq(com.yztc.auth.ui.Banner.displayWidth(""), 0, "空串宽 0");
+        // 补齐
+        Assert.eq(com.yztc.auth.ui.Banner.padRight("ab", 5), "ab   ", "半角右补空格");
+        Assert.eq(com.yztc.auth.ui.Banner.padRight("野棕乡", 8), "野棕乡  ", "全角按宽补齐");
+        Assert.eq(com.yztc.auth.ui.Banner.padRight("abcd", 3), "abcd", "超宽不截断");
+        // 信息行（标签由语言表读入；此处内置一份，聚焦排版）
+        var labels = new com.yztc.auth.ui.Banner.Labels(
+                "登录认证组件", "Mod 版本", "Minecraft", "Forge", "作者", "启动成功");
+        String mod = "野粽乡登入mod";
+        var noName = com.yztc.auth.ui.Banner.infoLines("", mod, "1.0.0", "BrainLeech198", "1.20.1", "47.4.0", labels);
+        Assert.that(noName.get(0).text().contains(mod), "无服名时首行用 mod 名");
+        Assert.that(noName.stream().anyMatch(l -> l.text().contains("BrainLeech198")), "含作者");
+        Assert.that(noName.stream().anyMatch(l -> l.text().contains("1.0.0")), "含 mod 版本");
+        Assert.that(noName.stream().anyMatch(l -> l.text().contains("47.4.0")), "含 Forge 版本");
+        Assert.that(noName.stream().anyMatch(l -> l.text().contains("1.20.1")), "含 MC 版本");
+        Assert.eq(noName.stream().filter(com.yztc.auth.ui.Banner.Line::accent).count(), 1L, "仅状态行 accent");
+        var withName = com.yztc.auth.ui.Banner.infoLines("我的世界", mod, "1.0.0", "BrainLeech198", "1.20.1", "47.4.0", labels);
+        Assert.that(withName.get(0).text().contains("我的世界"), "有服名时首行含服名");
+        Assert.that(withName.get(0).text().contains(mod), "有服名时首行仍含 mod 名");
+        // 控制台行：顶底框 + 等宽 + 颜色码
+        var cl = com.yztc.auth.ui.Banner.consoleLines("", mod, "1.0.0", "BrainLeech198", "1.20.1", "47.4.0", labels);
+        Assert.that(cl.get(0).contains("╔") && cl.get(0).contains("╗"), "顶框");
+        Assert.that(cl.get(cl.size() - 1).contains("╚") && cl.get(cl.size() - 1).contains("╝"), "底框");
+        Assert.that(cl.get(0).startsWith(com.yztc.auth.ui.Banner.GOLD), "顶框金色前缀");
+        Assert.that(cl.stream().anyMatch(l -> l.contains(com.yztc.auth.ui.Banner.GREEN)), "状态行含绿色");
+        int wid = com.yztc.auth.ui.Banner.displayWidth(stripAnsi(cl.get(0)));
+        Assert.that(cl.stream().allMatch(l -> com.yztc.auth.ui.Banner.displayWidth(stripAnsi(l)) == wid),
+                "所有控制台行等宽（实得首行 " + wid + "）");
+        // 游戏内行：组件数量与纯文本行数一致
+        var ch = com.yztc.auth.ui.Banner.chatLines("", mod, "1.0.0", "BrainLeech198", "1.20.1", "47.4.0", labels);
+        Assert.eq(ch.size(), cl.size(), "聊天行数与控制台行数一致");
+        Assert.that(ch.get(0).getString().contains("╔"), "聊天顶框含字符");
+    }
+
+    private static void testChatBox() {
+        Assert.section("ChatBox 双线方框");
+        // TextWidth 共享工具：与 Banner 同模型
+        Assert.eq(com.yztc.auth.ui.TextWidth.displayWidth("野棕乡"), 6, "全角宽 6");
+        Assert.eq(com.yztc.auth.ui.TextWidth.displayWidth("║ ═ ╗"), 5, "框线半角");
+        Assert.eq(com.yztc.auth.ui.Banner.displayWidth("野棕乡"),
+                com.yztc.auth.ui.TextWidth.displayWidth("野棕乡"), "Banner 委托 TextWidth");
+
+        var lines = com.yztc.auth.ui.ChatBox.boxText("标题", java.util.List.of("abc", "汉字行"));
+        Assert.eq(lines.size(), 4, "标题+2 行+底框 = 4 行");
+        Assert.eq(lines.get(0), "╔═ 标题 ═", "顶框含标题（无右边框）");
+        Assert.eq(lines.get(1), "║ abc", "内容行 1");
+        Assert.eq(lines.get(2), "║ 汉字行", "内容行 2");
+        Assert.eq(lines.get(3), "╚════════", "底框（无右边框）");
+        int w = com.yztc.auth.ui.TextWidth.displayWidth(lines.get(0));
+        Assert.eq(com.yztc.auth.ui.TextWidth.displayWidth(lines.get(3)), w, "上下横线等宽");
+        Assert.that(lines.stream().noneMatch(l -> l.endsWith("╗") || l.endsWith("║") || l.endsWith("╝")),
+                "无右边框字符");
+
+        // 标题比内容还长时，顶框仍要留至少一格 ═
+        var wide = com.yztc.auth.ui.ChatBox.boxText("一个很长很长的标题啊", java.util.List.of("x"));
+        int w2 = com.yztc.auth.ui.TextWidth.displayWidth(wide.get(0));
+        Assert.eq(com.yztc.auth.ui.TextWidth.displayWidth(wide.get(wide.size() - 1)), w2,
+                "长标题时上下横线仍等宽");
+        Assert.that(wide.get(0).endsWith("═"), "长标题时顶框仍以 ═ 收尾");
+
+        // 组件版：内容行的样式/点击事件被保留（不重建成纯文本）
+        var clicky = net.minecraft.network.chat.Component.literal("点我")
+                .withStyle(s -> s.withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND, "/yzts")));
+        var boxed = com.yztc.auth.ui.ChatBox.box(
+                net.minecraft.network.chat.Component.literal("列表"), java.util.List.of(clicky));
+        Assert.eq(boxed.size(), 3, "组件版：标题+1 行+底框 = 3");
+        Assert.that(boxed.get(0).getString().contains("列表"), "组件版顶框含标题");
+        boolean hasClick = boxed.get(1).getSiblings().stream().anyMatch(c -> c.getStyle().getClickEvent() != null);
+        Assert.that(hasClick, "内容行的点击事件被保留");
+        Assert.that(boxed.get(2).getString().startsWith("╚"), "组件版底框");
+    }
+
+    private static String stripAnsi(String s) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == 27) {
+                int m = s.indexOf('m', i);
+                if (m < 0) break;
+                i = m;
+            } else {
+                b.append(c);
+            }
+        }
+        return b.toString();
     }
 
     private static void testBookGuide() {
         Assert.section("BookGuide");
         var tag = com.yztc.auth.ui.BookGuide.bookTag();
-        Assert.eq(tag.getString("title"), "yztauth 指南", "书名");
+        Assert.eq(tag.getString("title"), "超级工具箱指南", "书名");
         Assert.eq(tag.getString("author"), "服务器", "作者");
         var pages = tag.getList("pages", net.minecraft.nbt.Tag.TAG_STRING);
         Assert.that(pages.size() >= 3, "至少 3 页（实得 " + pages.size() + "）");
-        int clickable = 0;
         for (int i = 0; i < pages.size(); i++) {
             String raw = pages.getString(i);
             try {
                 var o = com.google.gson.JsonParser.parseString(raw).getAsJsonObject();
                 Assert.that(o.has("text"), "第 " + (i + 1) + " 页含 text 字段");
-                if (o.has("clickEvent")) {
-                    clickable++;
-                    Assert.eq(o.getAsJsonObject("clickEvent").get("action").getAsString(), "suggest_command",
-                            "第 " + (i + 1) + " 页 clickEvent 为 suggest_command");
-                }
+                Assert.that(!o.has("clickEvent"), "第 " + (i + 1) + " 页不带点击（1.20.1 书内点击为空实现）");
             } catch (Exception e) {
                 Assert.that(false, "第 " + (i + 1) + " 页不是合法 JSON: " + e);
             }
         }
-        Assert.that(clickable >= 2, "至少 2 页带可点击命令（实得 " + clickable + "）");
+        // 热栏选格：优先选中格，其次任一空格，全满 -1
+        Assert.eq(com.yztc.auth.ui.BookGuide.hotbarSlotFor(0, i -> true), 0, "选中格为空则用选中格");
+        Assert.eq(com.yztc.auth.ui.BookGuide.hotbarSlotFor(0, i -> i != 0), 1, "选中格被占则用下一空格");
+        Assert.eq(com.yztc.auth.ui.BookGuide.hotbarSlotFor(5, i -> i == 9), -1, "热栏全满返回 -1");
     }
 
     private static void testUiSession() {
         Assert.section("UiSession");
+        Assert.that(com.yztc.auth.ui.AnvilInput.shouldCommit("hello"), "有内容即提交");
+        Assert.that(com.yztc.auth.ui.AnvilInput.shouldCommit("  x  "), "带空白的内容仍提交");
+        Assert.that(!com.yztc.auth.ui.AnvilInput.shouldCommit(null), "null 不提交");
+        Assert.that(!com.yztc.auth.ui.AnvilInput.shouldCommit(""), "空串不提交");
+        Assert.that(!com.yztc.auth.ui.AnvilInput.shouldCommit("   "), "全空白不提交");
+
+        int[] fired = {0};
+        String token = com.yztc.auth.ui.InputPrompt.register(() -> fired[0]++);
+        Assert.that(token != null && !token.isBlank(), "register 返回令牌");
+        Assert.that(com.yztc.auth.ui.InputPrompt.fire(token), "fire 命中已注册令牌");
+        Assert.eq(fired[0], 1, "fire 执行回调一次");
+        Assert.that(!com.yztc.auth.ui.InputPrompt.fire(token), "重复 fire 失败（一次性）");
+        Assert.eq(fired[0], 1, "重复 fire 不再执行");
+        Assert.that(!com.yztc.auth.ui.InputPrompt.fire("nope"), "未知令牌 fire 失败");
+
         java.util.UUID owner = java.util.UUID.randomUUID();
         java.util.List<String> commits = new java.util.ArrayList<>();
         int[] cancels = {0};
@@ -578,7 +906,7 @@ public final class SelfTestMain {
         try {
             java.nio.file.Path srcRoot = java.nio.file.Path.of("src", "main", "java");
             Assert.that(java.nio.file.Files.isDirectory(srcRoot), "源码目录存在：" + srcRoot.toAbsolutePath());
-            java.util.Set<String> declared = langKeys("/assets/yztauth/lang/zh_cn.json");
+            java.util.Set<String> declared = langKeys("/assets/yzt_super/lang/zh_cn.json");
             java.util.Set<String> used = new java.util.TreeSet<>();
             try (var walk = java.nio.file.Files.walk(srcRoot)) {
                 for (java.nio.file.Path f : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
@@ -587,7 +915,7 @@ public final class SelfTestMain {
             }
             Assert.that(used.size() >= 10, "扫描到足够多的语言键，防空转（实得 " + used.size() + "）");
             java.util.List<String> missing = new java.util.ArrayList<>();
-            for (String id : used) if (!declared.contains("yztauth.msg." + id)) missing.add(id);
+            for (String id : used) if (!declared.contains("yzt_super.msg." + id)) missing.add(id);
             Assert.eq(missing.toString(), "[]", "源码引用的语言键都已在 zh_cn 声明");
         } catch (Exception e) {
             Assert.that(false, "Lang 键引用测试异常: " + e);
@@ -664,12 +992,21 @@ public final class SelfTestMain {
         Assert.eq(com.yztc.auth.config.AuthConfig.afkLogoutSeconds(), 600, "afkLogoutSeconds 默认 600");
         Assert.eq(com.yztc.auth.config.AuthConfig.welcomeTitleText(), "", "welcomeTitleText 默认空");
         Assert.eq(com.yztc.auth.config.AuthConfig.welcomeSubText(), "", "welcomeSubText 默认空");
+        Assert.eq(com.yztc.auth.config.AuthConfig.language(), "zh_cn", "language 默认 zh_cn");
+        Assert.eq(com.yztc.auth.config.AuthConfig.broadcastCooldownSeconds(), 60, "broadcastCooldownSeconds 默认 60");
+        Assert.that(!com.yztc.auth.config.AuthConfig.broadcastAllowPlayerColors(), "玩家颜色默认不允许");
+        Assert.eq(com.yztc.auth.config.AuthConfig.broadcastPrefix(), "[公告]", "前缀默认 [公告]");
+        Assert.that(com.yztc.auth.config.AuthConfig.broadcastChannelChat(), "聊天通道默认开");
+        Assert.that(com.yztc.auth.config.AuthConfig.broadcastChannelTitle(), "标题通道默认开");
+        Assert.that(!com.yztc.auth.config.AuthConfig.broadcastChannelSubtitle(), "副标题默认关");
+        Assert.that(!com.yztc.auth.config.AuthConfig.broadcastChannelActionbar(), "actionbar 默认关");
+        Assert.eq(com.yztc.auth.config.AuthConfig.broadcastMaxLength(), 128, "内容上限默认 128");
     }
 
     private static void testGateManager() {
         Assert.section("GateManager");
         try {
-            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-gate");
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yzt_super-gate");
             java.nio.file.Path f = dir.resolve("users.json");
             var store = new com.yztc.auth.data.AccountStore(f);
             store.load();
@@ -707,15 +1044,423 @@ public final class SelfTestMain {
         }
     }
 
+    // 聊天栏消息配色：成功=绿、失败=红、提醒=金、信息=青、次要=灰、注意=黄
+    private static void testMessageColors() {
+        Assert.section("Lang 消息配色");
+        int green = net.minecraft.ChatFormatting.GREEN.getColor();
+        int red = net.minecraft.ChatFormatting.RED.getColor();
+        int gold = net.minecraft.ChatFormatting.GOLD.getColor();
+        int yellow = net.minecraft.ChatFormatting.YELLOW.getColor();
+        int aqua = net.minecraft.ChatFormatting.AQUA.getColor();
+        int gray = net.minecraft.ChatFormatting.GRAY.getColor();
+
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("login_ok", "alice")), green, "登录成功=绿");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("register_ok")), green, "注册成功=绿");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("mail_sent")), green, "留言已发=绿");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("login_bad")), red, "密码错误=红");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("no_permission")), red, "无权限=红");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("login_new_ip", "1.2.3.4")), gold, "异地登录提醒=金");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("mail_unread_notice", 2)), gold, "未读留言提醒=金");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("where_result", "a", "b", "c", "d", "e")), aqua, "位置结果=青");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("status_line", 1, 0, "")), aqua, "状态行=青");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("mail_none")), gray, "无留言=灰");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("not_registered")), yellow, "未注册提示=黄");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("confirm_prompt")), gold, "危险操作提示=金");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("risk_alert", 3)), gold, "高风险提醒=金");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("risk_done_ok")), green, "标记处理成功=绿");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_set_ok")), green, "切换称号成功=绿");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_bad_id")), red, "称号 ID 非法=红");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_confirm_give")), gold, "发放确认=金");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_list_header")), aqua, "称号库标题=青");
+        Assert.eq(colorOf(com.yztc.auth.lang.Lang.msg("title_none")), gray, "无称号=灰");
+
+        try {
+            java.util.Set<String> declared = langKeys("/assets/yzt_super/lang/zh_cn.json");
+            var palette = com.yztc.auth.lang.Lang.paletteKeys();
+            Assert.that(palette.size() >= 40, "调色板覆盖足够多的键，防空转（实得 " + palette.size() + "）");
+            for (String id : palette) {
+                Assert.that(declared.contains("yzt_super.msg." + id), "调色板键已在 zh_cn 声明：" + id);
+            }
+        } catch (Exception e) {
+            Assert.that(false, "配色键覆盖测试异常: " + e);
+        }
+    }
+
+    private static int colorOf(net.minecraft.network.chat.Component c) {
+        var col = c.getStyle().getColor();
+        return col == null ? -1 : col.getValue();
+    }
+
+    // 登录成功面板：日期时间行 + 未读行 + 一排文字按钮（查看/写信/管理/指南）
+    private static void testLoginBoard() {
+        Assert.section("登录面板");
+        var zone = java.time.ZoneId.of("Asia/Shanghai");
+        long ms = java.time.ZonedDateTime.of(2026, 10, 9, 21, 30, 0, 0, zone)
+                .toInstant().toEpochMilli();
+
+        String zh = com.yztc.auth.ui.LoginBoard.dateTimeText(ms, zone, false);
+        Assert.that(zh.contains("10月9日"), "中文日期含 10月9日：" + zh);
+        Assert.that(zh.contains("21:30"), "中文时间含 21:30：" + zh);
+        String en = com.yztc.auth.ui.LoginBoard.dateTimeText(ms, zone, true);
+        Assert.that(en.contains("Oct"), "英文日期含 Oct：" + en);
+        Assert.that(en.contains("21:30"), "英文时间含 21:30：" + en);
+
+        // 邮箱段：查看 / 写信 / 邮箱管理
+        var mail = com.yztc.auth.ui.LoginBoard.mailButtons();
+        Assert.eq(mail.size(), 3, "邮箱段三个按钮");
+        Assert.eq(mail.get(0).labelKey(), "btn_view", "邮箱1=查看");
+        Assert.eq(mail.get(0).command(), "/yzts mail list", "查看命令=留言列表");
+        Assert.that(!mail.get(0).run(), "查看=只填命令（非 GUI）");
+        Assert.eq(mail.get(1).labelKey(), "btn_write", "邮箱2=写信");
+        Assert.eq(mail.get(1).command(), "/yzts mail send", "写信命令=写信 GUI");
+        Assert.that(mail.get(1).run(), "写信=点击即开 GUI");
+        Assert.eq(mail.get(2).labelKey(), "btn_manage", "邮箱3=管理");
+        Assert.eq(mail.get(2).command(), "/yzts mail manage", "管理命令=管理 GUI");
+        Assert.that(mail.get(2).run(), "管理=点击即开 GUI");
+
+        // 账号段：账户 / 指南
+        var acc = com.yztc.auth.ui.LoginBoard.accountButtons();
+        Assert.eq(acc.size(), 2, "账号段两个按钮");
+        Assert.eq(acc.get(0).labelKey(), "btn_account", "账号1=账户");
+        Assert.eq(acc.get(0).command(), "/yzts account", "账户命令=账户 GUI");
+        Assert.that(acc.get(0).run(), "账户=点击即开 GUI");
+        Assert.eq(acc.get(1).labelKey(), "btn_guide", "账号2=指南");
+        Assert.eq(acc.get(1).command(), "/yzts help", "指南命令=帮助");
+        Assert.that(!acc.get(1).run(), "指南=只填命令（非 GUI）");
+
+        // 合并表：邮箱段 + 账号段
+        var btns = com.yztc.auth.ui.LoginBoard.buttons();
+        Assert.eq(btns.size(), 5, "共五个文字按钮");
+        Assert.eq(btns.get(3).labelKey(), "btn_account", "合并表按钮4=账户");
+        Assert.eq(btns.get(4).labelKey(), "btn_guide", "合并表按钮5=指南");
+
+        // 段标题：中文含分隔符与段名
+        String hdr = com.yztc.auth.ui.LoginBoard.sectionHeader("login_board_sec_mail").getString();
+        Assert.that(hdr.contains("邮箱"), "段标题含段名：邮箱 -> " + hdr);
+        Assert.that(hdr.contains("━"), "段标题含分隔线：" + hdr);
+    }
+
+    // 通用按钮面板：按钮数 → 箱子行数（1..6，超出封顶）
+    private static void testButtonPanel() {
+        Assert.section("按钮面板行数");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(0), 1, "0 个按钮 → 1 行");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(1), 1, "1 个按钮 → 1 行");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(9), 1, "9 个按钮 → 1 行");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(10), 2, "10 个按钮 → 2 行");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(20), 3, "20 个按钮 → 3 行");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(54), 6, "54 个按钮 → 6 行");
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.rowsFor(100), 6, "超出 → 封顶 6 行");
+    }
+
+    // 管理面板分页：每页容量 → 总页数（至少 1 页，整除不多算一页）
+    // 选称号面板：ButtonPanel 的 glint 字段 = 当前 selected 高亮
+    private static void testTitlePanel() {
+        Assert.section("TitlePanel");
+        // 纯逻辑已在 TitleService 覆盖；GUI 观感标注「待实测」
+        var dSel = new com.yztc.auth.title.TitleDef();
+        dSel.id = "elder"; dSel.text = "长老"; dSel.color = "GOLD";
+        Assert.that(com.yztc.auth.title.TitleService.canSelect("elder", java.util.Set.of("elder"),
+                        java.util.Map.of("elder", dSel)),
+                "面板可选项判定");
+
+        // 槽位布局：标题占 0..n-1，「不显示」接在后面；无标题时提示占 0、不显示占 1（不得撞槽）
+        Assert.eq(com.yztc.auth.title.TitlePanel.slotsFor(0), java.util.List.of(1),
+                "无标题：不显示独占槽 1，槽 0 留给提示");
+        Assert.eq(com.yztc.auth.title.TitlePanel.slotsFor(1), java.util.List.of(0, 1),
+                "1 个标题 + 不显示");
+        Assert.eq(com.yztc.auth.title.TitlePanel.slotsFor(2), java.util.List.of(0, 1, 2),
+                "2 个标题 + 不显示");
+
+        // 已定义标题数：未定义 id 不占槽（Review #3）
+        var defs = new java.util.HashMap<String, com.yztc.auth.title.TitleDef>();
+        var elder = new com.yztc.auth.title.TitleDef();
+        elder.id = "elder"; elder.text = "长老"; elder.color = "GOLD";
+        defs.put("elder", elder);
+        Assert.eq(com.yztc.auth.title.TitlePanel.definedCount(java.util.Set.of(), defs), 0, "空 owned");
+        Assert.eq(com.yztc.auth.title.TitlePanel.definedCount(java.util.Set.of("elder"), defs), 1, "1 条有定义");
+        Assert.eq(com.yztc.auth.title.TitlePanel.definedCount(java.util.Set.of("elder", "gone"), defs), 1,
+                "未定义 id 不占槽");
+        Assert.eq(com.yztc.auth.title.TitlePanel.definedCount(java.util.Set.of("gone"), defs), 0, "全未定义");
+    }
+
+    private static void testAdminPanel() {
+        Assert.section("AdminPanel 分页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(0, com.yztc.auth.ui.AdminPanel.PER_PAGE), 1,
+                "0 个账号 → 1 页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(1, com.yztc.auth.ui.AdminPanel.PER_PAGE), 1,
+                "1 个账号 → 1 页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(
+                com.yztc.auth.ui.AdminPanel.PER_PAGE, com.yztc.auth.ui.AdminPanel.PER_PAGE), 1,
+                "正好满一页 → 1 页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(
+                com.yztc.auth.ui.AdminPanel.PER_PAGE + 1, com.yztc.auth.ui.AdminPanel.PER_PAGE), 2,
+                "多 1 个 → 2 页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(
+                2 * com.yztc.auth.ui.AdminPanel.PER_PAGE, com.yztc.auth.ui.AdminPanel.PER_PAGE), 2,
+                "正好两页 → 2 页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(
+                3 * com.yztc.auth.ui.AdminPanel.PER_PAGE + 1, com.yztc.auth.ui.AdminPanel.PER_PAGE), 4,
+                "两页多 1 个 → 4 页");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(5, 0), 1, "容量为 0 → 兜底 1 页");
+
+        Assert.section("AdminPanel.slotToIndex");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.slotToIndex(9, 0), 0, "槽 9 第 0 页 → 0");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.slotToIndex(10, 0), 1, "槽 10 第 0 页 → 1");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.slotToIndex(44, 0), 35, "槽 44 第 0 页 → 35");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.slotToIndex(9, 1), 36, "槽 9 第 1 页 → 36");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.slotToIndex(15, 2), 78, "槽 15 第 2 页 → 78");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.slotToIndex(8, 0), -1, "顶行槽 8 不在列表区");
+    }
+
+    // 个人中心资料行：注册时间/上次登录/上次登录 IP/邮箱（打码）；空字段回退
+    private static void testAccountPanel() {
+        Assert.section("AccountPanel 资料行");
+        var zone = java.time.ZoneId.of("UTC");
+        var a = new com.yztc.auth.data.Account();
+        a.registeredAt = 1_700_000_000_000L; a.lastLogin = 1_700_000_060_000L; a.lastIp = "1.2.3.4";
+        a.email = "alice@example.com";
+        var rows = com.yztc.auth.ui.AccountPanel.profileInfo(a, zone);
+        Assert.eq(rows.size(), 4, "资料共 4 行");
+        Assert.that(rows.get(0).getString().contains("2023-11-14 22:13:20"),
+                "第 1 行=注册时间：" + rows.get(0).getString());
+        Assert.that(rows.get(1).getString().contains("2023-11-14 22:14:20"),
+                "第 2 行=上次登录：" + rows.get(1).getString());
+        Assert.that(rows.get(2).getString().endsWith("1.2.3.4"),
+                "第 3 行=上次登录 IP：" + rows.get(2).getString());
+        Assert.eq(rows.get(3).getString(), "当前邮箱：a***@example.com", "第 4 行=打码邮箱");
+
+        var blank = new com.yztc.auth.data.Account();
+        var rows2 = com.yztc.auth.ui.AccountPanel.profileInfo(blank, zone);
+        Assert.that(rows2.get(0).getString().endsWith("—"), "空注册时间回退 —");
+        Assert.that(rows2.get(2).getString().endsWith("—"), "空 IP 回退 —");
+        Assert.eq(rows2.get(3).getString(),
+                com.yztc.auth.lang.Lang.msg("email_unbound").getString(), "未绑邮箱提示");
+        Assert.eq(com.yztc.auth.ui.AccountPanel.emailLine(null).getString(),
+                com.yztc.auth.lang.Lang.msg("email_unbound").getString(), "emailLine(null)=未绑定");
+        Assert.eq(com.yztc.auth.ui.AccountPanel.emailLine(" bob@x.com ").getString(),
+                "当前邮箱：b***@x.com", "emailLine 打码");
+    }
+
+    // 邮箱详情页与列表标签：发件人/收件人/时间/内容；未读前置 [未读]；公开留言收件人占位
+    private static void testMailPanel() {
+        Assert.section("MailPanel 详情与列表标签");
+        var zone = java.time.ZoneId.of("UTC");
+        var m = new com.yztc.auth.data.Mail();
+        m.id = "ab12cd"; m.from = "alice"; m.to = "bob";
+        m.text = "hello"; m.createdAt = 1_700_000_000_000L; m.isPublic = false; m.readAt = 0;
+        var rows = com.yztc.auth.ui.MailPanel.detailInfo(m, zone);
+        Assert.eq(rows.size(), 4, "详情共 4 行");
+        Assert.that(rows.get(0).getString().endsWith("alice"), "第 1 行=发件人");
+        Assert.that(rows.get(1).getString().endsWith("bob"), "第 2 行=收件人");
+        Assert.that(rows.get(2).getString().contains("2023-11-14 22:13:20"), "第 3 行=时间");
+        Assert.that(rows.get(3).getString().endsWith("hello"), "第 4 行=内容");
+
+        String unread = com.yztc.auth.ui.MailPanel.listLabel(m, true).getString();
+        Assert.that(unread.contains("未读"), "未读标签含 [未读]：" + unread);
+        Assert.that(unread.contains("#ab12cd") && unread.contains("alice"), "标签含 id 与发件人");
+        String read = com.yztc.auth.ui.MailPanel.listLabel(m, false).getString();
+        Assert.that(!read.contains("未读"), "已读无未读标记");
+
+        var pub = new com.yztc.auth.data.Mail();
+        pub.id = "ffee00"; pub.from = "carol"; pub.to = ""; pub.text = "hi all";
+        pub.createdAt = 1_700_000_000_000L; pub.isPublic = true;
+        var rows2 = com.yztc.auth.ui.MailPanel.detailInfo(pub, zone);
+        Assert.that(rows2.get(1).getString().endsWith("—"), "公开留言收件人占位 —");
+
+        Assert.that(com.yztc.auth.ui.MailPanel.PER_PAGE > 0, "PER_PAGE 为正");
+        Assert.eq(com.yztc.auth.ui.AdminPanel.pageCount(
+                com.yztc.auth.ui.MailPanel.PER_PAGE + 1, com.yztc.auth.ui.MailPanel.PER_PAGE), 2,
+                "写信列表分页复用 pageCount");
+    }
+
+    // 大喇叭纯逻辑：通道选择、冷却、内容净化、行文本、标题分段
+    private static void testBroadcaster() {
+        Assert.section("Broadcaster 纯逻辑");
+        var B = com.yztc.auth.broadcast.Broadcaster.class;
+
+        // 通道：玩家固定仅聊天栏；管理员按开关
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.channelsFor(false, true, true, true, true),
+                java.util.EnumSet.of(com.yztc.auth.broadcast.Broadcaster.Channel.CHAT),
+                "玩家恒为仅聊天栏");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.channelsFor(true, true, false, false, true),
+                java.util.EnumSet.of(com.yztc.auth.broadcast.Broadcaster.Channel.CHAT,
+                        com.yztc.auth.broadcast.Broadcaster.Channel.ACTIONBAR),
+                "管理员=已开启通道集合");
+        Assert.that(com.yztc.auth.broadcast.Broadcaster.channelsFor(true, false, false, false, false).isEmpty(),
+                "管理员全关=空集");
+
+        // 冷却：向上取整、就绪归零、无冷却
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.cooldownRemaining(1_000_000L, 1_000_000L, 60), 60L, "刚喊完=60");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.cooldownRemaining(1_000_000L, 1_030_000L, 60), 30L, "过半=30");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.cooldownRemaining(1_000_000L, 1_030_500L, 60), 30L, "向上取整=30");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.cooldownRemaining(1_000_000L, 1_060_000L, 60), 0L, "到点=就绪");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.cooldownRemaining(1_000_000L, 1_100_000L, 0), 0L, "无冷却=0");
+
+        // 净化：去空白、剥颜色、截断
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize(" hi ", false, 128), "hi", "去首尾空白");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize("&ahello", false, 128), "hello", "剥 &a");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize("&Khello", false, 128), "hello", "剥大写码");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize("&ahello", true, 128), "§ahello", "允许颜色：&a 转 §a");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize("§bhi", true, 128), "§bhi", "已是 § 则原样保留");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize("abcdef", false, 3), "abc", "超长截断");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.sanitize(null, false, 128), "", "null → 空");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.stripColors("a&x&b"), "a&x", "&x 非码则保留，&b 剥掉");
+
+        // 行文本
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.line("[公告]", null, "hi").getString(),
+                "[公告] hi", "无名字");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.line("[公告]", "Steve", "hi").getString(),
+                "[公告] Steve: hi", "带名字");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.line("", null, "hi").getString(), "hi", "空前缀");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.line("", "Steve", "hi").getString(),
+                "Steve: hi", "空前缀带名字");
+
+        // 标题分段
+        Assert.eq(java.util.Arrays.toString(com.yztc.auth.broadcast.Broadcaster.titleParts(true, false, "hi", "[公告]")),
+                "[hi, ]", "仅标题");
+        Assert.eq(java.util.Arrays.toString(com.yztc.auth.broadcast.Broadcaster.titleParts(false, true, "hi", "[公告]")),
+                "[, hi]", "仅副标题");
+        Assert.eq(java.util.Arrays.toString(com.yztc.auth.broadcast.Broadcaster.titleParts(true, true, "hi", "[公告]")),
+                "[hi, [公告]]", "标题+副标题");
+
+        // 冷却按角色：玩家受限、管理员豁免
+        java.util.UUID u = java.util.UUID.randomUUID();
+        com.yztc.auth.broadcast.Broadcaster.markShout(u, 1_000_000L);
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.remainingFor(u, 1_000_000L, false), 60L, "普通玩家有冷却");
+        Assert.eq(com.yztc.auth.broadcast.Broadcaster.remainingFor(u, 1_000_000L, true), 0L, "管理员免冷却");
+
+        // 发送前置：空/超长/净化统一判定（命令与 GUI 共用）
+        Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare("", false, 128).errorKey(),
+                "broadcast_empty", "空 → empty");
+        Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare("   ", false, 128).errorKey(),
+                "broadcast_empty", "纯空白 → empty");
+        Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare("abcdef", false, 3).errorKey(),
+                "broadcast_too_long", "超长 → too_long");
+        Assert.that(com.yztc.auth.broadcast.BroadcastCommand.prepare("ok", false, 128).errorKey() == null,
+                "正常 → 无错误");
+        Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare(" hi ", false, 128).content(),
+                "hi", "通过 → 净化去空白");
+        Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare("&ahello", false, 128).content(),
+                "hello", "玩家剥色");
+        Assert.eq(com.yztc.auth.broadcast.BroadcastCommand.prepare("&ahello", true, 128).content(),
+                "§ahello", "管理员转 §");
+    }
+
+    // 高风险记录库：id 分配、待处理计数、标记处理、重复标记、上限裁剪
+    private static void testRiskStore() {
+        Assert.section("RiskStore");
+        var store = new com.yztc.auth.data.RiskStore(java.nio.file.Path.of("build", "risk-test.json"));
+        var r = new com.yztc.auth.data.Risk();
+        r.at = 1000; r.actor = "alice"; r.action = com.yztc.auth.risk.RiskLog.KICK; r.target = "bob";
+        String id = store.add(r);
+        Assert.that(id != null && !id.isBlank(), "add 分配 id");
+        Assert.eq(store.size(), 1, "size=1");
+        Assert.eq(store.pendingCount(), 1, "待处理=1");
+        Assert.that(store.byId(id) == r, "byId 命中");
+        Assert.eq(store.pending().size(), 1, "pending 列表=1");
+        Assert.that(store.markHandled(id, "op", 2000), "标记处理成功");
+        Assert.eq(store.pendingCount(), 0, "标记后待处理=0");
+        Assert.that(store.byId(id).handled, "handled 置位");
+        Assert.that(!store.markHandled(id, "op", 3000), "重复标记返回 false");
+        Assert.eq(store.pending().size(), 0, "pending 列表已空");
+
+        var store2 = new com.yztc.auth.data.RiskStore(java.nio.file.Path.of("build", "risk-test2.json"));
+        for (int i = 0; i < com.yztc.auth.data.RiskStore.MAX + 5; i++) {
+            var x = new com.yztc.auth.data.Risk();
+            x.at = i; x.action = com.yztc.auth.risk.RiskLog.KICK;
+            store2.add(x);
+        }
+        Assert.eq(store2.size(), com.yztc.auth.data.RiskStore.MAX, "超出上限裁剪到 MAX");
+    }
+
+    // 高风险记录文本：动作词中文映射、单行格式、未知动作回退
+    private static void testRiskLog() {
+        Assert.section("RiskLog");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.PASSWORD_RESET), "重置密码", "动作=重置密码");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.ACCOUNT_DELETE), "删除账号", "动作=删除账号");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.FORCE_LOGIN), "强制登录", "动作=强制登录");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.FORCE_LOGOUT), "强制登出", "动作=强制登出");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.KICK), "踢出", "动作=踢出");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.GATE_SET), "设置闸门", "动作=设置闸门");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.GATE_CLEAR), "关闭闸门", "动作=关闭闸门");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.MIGRATE), "数据迁移", "动作=数据迁移");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display(com.yztc.auth.risk.RiskLog.TELEPORT), "传送", "动作=传送");
+        Assert.eq(com.yztc.auth.risk.RiskLog.display("UNKNOWN_X"), "UNKNOWN_X", "未知动作原样返回");
+
+        var r = new com.yztc.auth.data.Risk();
+        r.id = "ab12cd"; r.action = com.yztc.auth.risk.RiskLog.KICK; r.actor = "op"; r.target = "bob";
+        String line = com.yztc.auth.risk.RiskLog.line(r);
+        Assert.that(line.startsWith("#ab12cd"), "行含 id：" + line);
+        Assert.that(line.contains("踢出"), "行含动作名：" + line);
+        Assert.that(line.contains("op") && line.contains("bob"), "行含操作者与目标：" + line);
+
+        var noTarget = new com.yztc.auth.data.Risk();
+        noTarget.id = "ff00ff"; noTarget.action = com.yztc.auth.risk.RiskLog.MIGRATE; noTarget.actor = "(console)";
+        Assert.that(com.yztc.auth.risk.RiskLog.line(noTarget).contains("(console)"), "控制台操作者显示");
+        Assert.that(!com.yztc.auth.risk.RiskLog.line(noTarget).contains("→"), "无目标不显示箭头");
+    }
+
+    // 高风险详情页：点开单条记录要能看出 时间/操作/操作者/目标/说明
+    private static void testRiskPanelDetail() {
+        Assert.section("RiskPanel 详情");
+        java.time.ZoneId utc = java.time.ZoneId.of("UTC");
+        Assert.eq(com.yztc.auth.ui.RiskPanel.timeText(1_700_000_000_000L, utc),
+                "2023-11-14 22:13:20", "时间戳格式化");
+
+        var r = new com.yztc.auth.data.Risk();
+        r.id = "ab12cd"; r.at = 1_700_000_000_000L;
+        r.action = com.yztc.auth.risk.RiskLog.PASSWORD_RESET;
+        r.actor = "admin"; r.target = "steve"; r.detail = "按管理员要求";
+        java.util.List<net.minecraft.network.chat.Component> rows =
+                com.yztc.auth.ui.RiskPanel.detailInfo(r, utc);
+        Assert.eq(rows.size(), 5, "详情共 5 行");
+        Assert.eq(rows.get(0).getString(), "时间：2023-11-14 22:13:20", "第 1 行=时间");
+        Assert.eq(rows.get(1).getString(), "操作：重置密码", "第 2 行=操作");
+        Assert.eq(rows.get(2).getString(), "操作者：admin", "第 3 行=操作者");
+        Assert.eq(rows.get(3).getString(), "目标：steve", "第 4 行=目标");
+        Assert.eq(rows.get(4).getString(), "说明：按管理员要求", "第 5 行=说明");
+
+        var blank = new com.yztc.auth.data.Risk();
+        blank.id = "0ff00f"; blank.at = 0;
+        blank.action = com.yztc.auth.risk.RiskLog.GATE_CLEAR; blank.actor = "(console)";
+        java.util.List<net.minecraft.network.chat.Component> rows2 =
+                com.yztc.auth.ui.RiskPanel.detailInfo(blank, utc);
+        Assert.that(rows2.get(3).getString().endsWith("(无)"), "无目标显示 (无)");
+        Assert.that(rows2.get(4).getString().endsWith("(无)"), "无说明显示 (无)");
+
+        // ButtonPanel：显式槽位按最大槽位算行数；只读项（action=null）也算占位
+        var auto1 = new com.yztc.auth.ui.ButtonPanel.Btn(
+                null, net.minecraft.network.chat.Component.literal("x"), null,
+                com.yztc.auth.ui.ButtonPanel.AUTO);
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.requiredRows(java.util.List.of(auto1)), 1,
+                "单个自动槽 → 1 行");
+        var explicit11 = new com.yztc.auth.ui.ButtonPanel.Btn(
+                null, net.minecraft.network.chat.Component.literal("x"), null, 11);
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.requiredRows(java.util.List.of(explicit11)), 2,
+                "显式槽 11 → 2 行");
+        var explicit20 = new com.yztc.auth.ui.ButtonPanel.Btn(
+                null, net.minecraft.network.chat.Component.literal("x"), null, 20);
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.requiredRows(java.util.List.of(explicit20)), 3,
+                "显式槽 20 → 3 行");
+        // 混合：4 个自动槽（占 0..3）+ 1 个显式槽 11 → 需要 2 行
+        var mixed = java.util.List.of(
+                new com.yztc.auth.ui.ButtonPanel.Btn(null, net.minecraft.network.chat.Component.literal("a"), null),
+                new com.yztc.auth.ui.ButtonPanel.Btn(null, net.minecraft.network.chat.Component.literal("b"), null),
+                new com.yztc.auth.ui.ButtonPanel.Btn(null, net.minecraft.network.chat.Component.literal("c"), null),
+                new com.yztc.auth.ui.ButtonPanel.Btn(null, net.minecraft.network.chat.Component.literal("d"), null),
+                new com.yztc.auth.ui.ButtonPanel.Btn(null, net.minecraft.network.chat.Component.literal("e"), null, 11));
+        Assert.eq(com.yztc.auth.ui.ButtonPanel.requiredRows(mixed), 2, "自动+显式混合 → 2 行");
+    }
+
     private static void testLang() {
         Assert.section("Lang");
         try {
-            java.util.Set<String> zh = langKeys("/assets/yztauth/lang/zh_cn.json");
-            java.util.Set<String> en = langKeys("/assets/yztauth/lang/en_us.json");
+            java.util.Set<String> zh = langKeys("/assets/yzt_super/lang/zh_cn.json");
+            java.util.Set<String> en = langKeys("/assets/yzt_super/lang/en_us.json");
             Assert.that(!zh.isEmpty(), "zh_cn 非空");
             Assert.that(zh.equals(en), "zh_cn 与 en_us 键集合一致");
-            Assert.that(zh.stream().allMatch(k -> k.startsWith("yztauth.msg.")), "所有键前缀为 yztauth.msg.");
-            Assert.eq(com.yztc.auth.lang.Lang.key("login_ok"), "yztauth.msg.login_ok", "Lang.key 拼接前缀");
+            Assert.that(zh.stream().allMatch(k -> k.startsWith("yzt_super.msg.")), "所有键前缀为 yzt_super.msg.");
+            Assert.eq(com.yztc.auth.lang.Lang.key("login_ok"), "yzt_super.msg.login_ok", "Lang.key 拼接前缀");
         } catch (Exception e) {
             Assert.that(false, "Lang 测试异常: " + e);
         }
@@ -731,10 +1476,86 @@ public final class SelfTestMain {
         }
     }
 
+    // 服务端兜底文本：原版客户端无本 mod 语言键，靠 ServerLang 提供的模板渲染
+    private static void testServerLang() {
+        Assert.section("ServerLang 兜底文本");
+        try {
+            java.util.Map<String, String> zh = langValues("/assets/yzt_super/lang/zh_cn.json");
+            java.util.Map<String, String> en = langValues("/assets/yzt_super/lang/en_us.json");
+            String p = "yzt_super.msg.";
+            for (var e : zh.entrySet()) {
+                String id = e.getKey().substring(p.length());
+                Assert.eq(com.yztc.auth.lang.ServerLang.templateFor("zh_cn", id), e.getValue(),
+                        "zh 模板一致: " + id);
+            }
+            for (var e : en.entrySet()) {
+                String id = e.getKey().substring(p.length());
+                Assert.eq(com.yztc.auth.lang.ServerLang.templateFor("en_us", id), e.getValue(),
+                        "en 模板一致: " + id);
+            }
+            Assert.that(com.yztc.auth.lang.ServerLang.templateFor("zh_cn", "no_such_key") == null,
+                    "未知 id 返回 null");
+            Assert.eq(com.yztc.auth.lang.ServerLang.templateFor("fr_fr", "login_ok"),
+                    zh.get(p + "login_ok"), "未知语言回退 zh_cn");
+
+            // 配置语言为默认 zh_cn 时，template 取 zh 模板；Lang.msg 把它挂成 fallback
+            Assert.eq(com.yztc.auth.lang.ServerLang.template("login_ok"),
+                    zh.get(p + "login_ok"), "template 按配置语言取模板");
+            var c = com.yztc.auth.lang.Lang.msg("login_ok", "Tom");
+            var tc = (net.minecraft.network.chat.contents.TranslatableContents) c.getContents();
+            Assert.eq(tc.getKey(), p + "login_ok", "键不变（装了 mod 的客户端仍走本地翻译）");
+            Assert.eq(tc.getFallback(), zh.get(p + "login_ok"), "无 mod 客户端走 zh 兜底模板");
+        } catch (Exception e) {
+            Assert.that(false, "ServerLang 测试异常: " + e);
+        }
+    }
+
+    // ServerLang.template 直接引用的兜底键不经 Lang.msg，故 testLangKeysReferenced 扫不到；此处逐一核对已声明
+    private static void testServerLangReferences() {
+        Assert.section("ServerLang 引用键");
+        try {
+            java.util.Map<String, String> zh = langValues("/assets/yzt_super/lang/zh_cn.json");
+            java.util.Map<String, String> en = langValues("/assets/yzt_super/lang/en_us.json");
+            String[] ids = {
+                    "banner_mod_tag", "banner_version", "banner_minecraft", "banner_forge",
+                    "banner_author", "banner_status",
+                    "admin_email_unset",
+                    "migrate_summary", "migrate_reason_empty_name", "migrate_reason_bad_name",
+                    "migrate_reason_bad_hash", "migrate_reason_exists",
+                    "risk_action_password_reset", "risk_action_account_delete", "risk_action_force_login",
+                    "risk_action_force_logout", "risk_action_kick", "risk_action_gate_set",
+                    "risk_action_gate_clear", "risk_action_migrate", "risk_action_teleport", "risk_by",
+                    "risk_handled_tag", "risk_detail_none",
+                    "book_title", "book_author", "book_p1", "book_p2", "book_p3",
+                    "broadcast_say", "broadcast_shout", "broadcast_cooldown",
+                    "broadcast_empty", "broadcast_too_long", "broadcast_sent"
+            };
+            for (String id : ids) {
+                String k = "yzt_super.msg." + id;
+                Assert.that(zh.containsKey(k), "zh 含键: " + id);
+                Assert.that(en.containsKey(k), "en 含键: " + id);
+            }
+        } catch (Exception e) {
+            Assert.that(false, "ServerLang 引用键测试异常: " + e);
+        }
+    }
+
+    private static java.util.Map<String, String> langValues(String resource) throws java.io.IOException {
+        try (java.io.InputStream in = SelfTestMain.class.getResourceAsStream(resource)) {
+            if (in == null) throw new java.io.IOException("资源缺失: " + resource);
+            String raw = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            com.google.gson.JsonObject o =
+                    com.google.gson.JsonParser.parseString(raw).getAsJsonObject();
+            java.util.Map<String, String> m = new java.util.HashMap<>();
+            for (var e : o.entrySet()) m.put(e.getKey(), e.getValue().getAsString());
+            return m;
+        }
+    }
+
     private static void testMigrateService() {
         Assert.section("MigrateService");
         try {
-            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yztauth-mig");
+            java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("yzt_super-mig");
             var store = new com.yztc.auth.data.AccountStore(dir.resolve("users.json"));
             store.load();
             var existing = new com.yztc.auth.data.Account();
@@ -810,7 +1631,7 @@ public final class SelfTestMain {
     private static void testAccountStore() {
         Assert.section("AccountStore");
         try {
-            Path dir = Files.createTempDirectory("yztauth-test");
+            Path dir = Files.createTempDirectory("yzt_super-test");
             Path f = dir.resolve("users.json");
             AccountStore store = new AccountStore(f);
             store.load();

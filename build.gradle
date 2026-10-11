@@ -63,14 +63,27 @@ dependencies {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    // gradle.properties 里的中文在部分环境会被按非 UTF-8 读取，导致 mods.toml 显示名/描述乱码；
+    // 这里显式按 UTF-8 重读，并把过滤读写字符集都钉成 UTF-8。
+    var utf8 = new Properties()
+    file('gradle.properties').withInputStream { is ->
+        utf8.load(new InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8))
+    }
     var replaceProperties = [
-            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
-            forge_version: forge_version, forge_version_range: forge_version_range,
-            loader_version_range: loader_version_range,
-            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-            mod_authors: mod_authors, mod_description: mod_description,
+            minecraft_version: utf8.getProperty('minecraft_version'),
+            minecraft_version_range: utf8.getProperty('minecraft_version_range'),
+            forge_version: utf8.getProperty('forge_version'),
+            forge_version_range: utf8.getProperty('forge_version_range'),
+            loader_version_range: utf8.getProperty('loader_version_range'),
+            mod_id: utf8.getProperty('mod_id'),
+            mod_name: utf8.getProperty('mod_name'),
+            mod_license: utf8.getProperty('mod_license'),
+            mod_version: utf8.getProperty('mod_version'),
+            mod_authors: utf8.getProperty('mod_authors'),
+            mod_description: utf8.getProperty('mod_description'),
     ]
     inputs.properties replaceProperties
+    filteringCharset = 'UTF-8'
     filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) { expand replaceProperties + [project: project] }
 }
 

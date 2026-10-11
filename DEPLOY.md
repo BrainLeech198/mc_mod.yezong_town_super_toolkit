@@ -1,6 +1,6 @@
-# yztauth 部署与切换说明
+# yzt_super（野粽乡·超级工具箱）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。目标 mod id：`yztauth`，产物：`build/libs/yztauth-1.0.0.jar`。
+用于把在用的 SAuth-2.0.0 换成本 mod。目标 mod id：`yzt_super`，显示名（PCL2 等从 `mods.toml` 读到、对外展示的就是它）：**野粽乡·超级工具箱**，产物：`build/libs/yzt_super-1.0.0.jar`。
 
 ## 1. 迁移前备份
 
@@ -20,41 +20,44 @@ export PATH="$HOME/.gradle/wrapper/dists/gradle-8.14.4-bin/*/gradle-8.14.4/bin:$
 gradle build --no-daemon --console=plain -Dfg.check.certs=false
 ```
 
-产物 `build/libs/yztauth-1.0.0.jar`（约 118 KB）。纯逻辑自测：
+产物 `build/libs/yzt_super-1.0.0.jar`（约 200 KB）。纯逻辑自测：
 
 ```bash
 gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
-# 期望末行：通过=276 失败=0
+# 期望末行：通过=1270 失败=0
 ```
 
 ## 3. 替换
 
 1. 从 `mods/` 移除 `SAuth-2.0.0.jar`（务必移除：本 mod 的裸指令 `/login` `/register` 与 SAuth 冲突）。
-2. 放入 `yztauth-1.0.0.jar`。
+2. 放入 `yzt_super-1.0.0.jar`。
 3. **保留** `config/serverreg/users.json` 原位不动（迁移要读它）。
 4. 若在用其它登录类 mod，先确认不会与本 mod 抢同名裸指令。
+
+本 mod 声明为**仅服务端**（`displayTest="IGNORE_SERVER_VERSION"`）：**玩家无需在客户端安装本 mod**，原版客户端即可进服。
+装了本 mod 的客户端提示走本地翻译；未装的客户端提示走服务端兜底文本（见 §6 `language`）。
 
 ## 4. 首次启动与迁移
 
 启动服务器，然后**从控制台**执行：
 
 ```
-/yztauth migrate --dry-run      # 先干跑：只报计数与逐条失败，不落库
-/yztauth migrate                # 确认无误后落库
+/yzts admin migrate --dry-run      # 先干跑：只报计数与逐条失败，不落库
+/yzts admin migrate                # 确认无误后落库
 ```
 
 - 迁移结果只记计数与状态词（`IMPORTED` / `SKIPPED` / `FAILED`），不记明文密码。
 - 重复执行幂等；`--dry-run` 不写库。
-- 迁移写入 `config/yztauth/users.json`（新库，与 SAuth 文件无耦合）。
+- 迁移写入 `config/yzt_super/users.json`（新库，与 SAuth 文件无耦合）。
 - 老密码为无盐 SHA-256，**首次成功登录后**该条自动升级为 `pbkdf2-sha256`。
 
 ## 5. 可选：全服闸门密码
 
-只有最高权可设（控制台，或游戏内 `yztauth.gate` 权限者且需二次验密）。设置后**所有人（含管理员）**进服必须先过闸。
+只有最高权可设（控制台，或游戏内 `yzt_super.gate` 权限者且需二次验密）。设置后**所有人（含管理员）**进服必须先过闸。
 
 ```
-/yztauth serverpassword set <密码>    # 开启门禁
-/yztauth serverpassword clear         # 关闭门禁，恢复进服直达登录
+/yzts admin serverpassword set <密码>    # 开启门禁
+/yzts admin serverpassword clear         # 关闭门禁，恢复进服直达登录
 ```
 
 不设则跳过此步。
@@ -63,29 +66,97 @@ gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
 
 | 指令 | 说明 | 权限 |
 |---|---|---|
-| `/yztauth mail send <玩家> <内容>` | 发私信（收件人离线也可） | 所有人 |
-| `/yztauth mail post <内容>` | 发公开留言板 | 所有人 |
-| `/yztauth mail list` | 我的私信 + 公开板（列出即清未读） | 所有人 |
-| `/yztauth mail board` | 只看公开板 | 所有人 |
-| `/yztauth mail del <id>` | 删除留言 | 作者 / 收件人 / 管理员 |
-| `/yztauth where <玩家>` | 查其最后下线维度与坐标 | 所有人 |
-| `/yztauth tp <玩家>` | 传送到其记录位置 | 管理员、且须游戏内执行 |
-| `/yztauth status` | 在线人数与未登录名单 | 管理员 / 控制台 |
+| `/yzts logout` | 聊天栏二选一：退出服务器 / 仅登出账号 | 所有人 |
+| `/yzts logout quit` | 直接退出服务器 | 所有人 |
+| `/yzts logout stay` | 仅登出账号（留在服内，回到未登入锁定态） | 所有人 |
+| `/yzts mail send <玩家> <内容>` | 发私信（收件人离线也可） | 所有人 |
+| `/yzts mail send`（无参数） | 打开「写信」GUI：点玩家 → 铁砧输正文 | 所有人 |
+| `/yzts mail post <内容>` | 发公开留言板 | 所有人 |
+| `/yzts mail list` | 我的私信 + 公开板（列出即清未读） | 所有人 |
+| `/yzts mail manage` | 打开「邮箱管理」GUI：逐条私信，点开读全文（自动标已读），详情页再删 | 所有人 |
+| `/yzts mail board` | 只看公开板 | 所有人 |
+| `/yzts mail del <id>` | 删除留言 | 作者 / 收件人 / 管理员 |
+| `/yzts account` | 打开「账户设置」GUI（改密 / 邮箱 / 登出 / 指南） | 所有人 |
+| `/yzts account email <地址>` | 设置邮箱（**只能设一次**；改绑需先验当前邮箱 + 账户密码） | 所有人 |
+| `/yzts account changepassword <旧> <新>` | 修改密码 | 所有人 |
+| `/yzts help` | 领取指南书 | 所有人 |
+| `/yzts where <玩家>` | 查其最后下线维度与坐标 | 所有人 |
+| `/yzts where tp <玩家>` | 传送到其记录位置 | 管理员、且须游戏内执行 |
+| `/yzts say [内容]` | 全服公告（走配置开启的全部通道：聊天/标题/副标题/actionbar）；无参数开铁砧输入框 | 管理员 / 控制台 |
+| `/yzts shout [内容]` | 全服喊话（仅聊天栏，带冷却）；无参数开铁砧输入框 | 所有人（已登录） |
+| `/yzts admin` | 打开管理面板：列出**全部账号**（含离线；在线=头像，离线=骷髅），超过 45 个自动分页 | 管理员 / 控制台 |
+| `/yzts admin setpassword <玩家> <密码>` | 重置指定账号密码（在线离线皆可） | 管理员 / 控制台 |
+| `/yzts admin delete <玩家>` | 删除账号（**其人若在线直接断开连接**） | 管理员 / 控制台 |
+| `/yzts admin forcelogin <玩家>` | 强制其登录（需在线） | 管理员 / 控制台 |
+| `/yzts admin kick <玩家>` | 踢出（需在线） | 管理员 / 控制台 |
+| `/yzts admin status` | 在线人数与未登录名单 | 管理员 / 控制台 |
+| `/yzts admin risk` / `list` / `done <id>` | 高风险记录：面板 / 列表 / 标记已处理 | 管理员 / 控制台 |
+| `/yzts admin migrate [--dry-run]` | 从 SAuth 库迁移 | 最高权 / 控制台 |
+| `/yzts admin serverpassword set <密码>` / `clear` | 开启 / 关闭全服闸门 | 最高权 / 控制台 |
 
 未登录时这些指令一律被封锁拦截（与既有规则一致，只放行认证入口）。
+
+## 5.2 登录面板与聊天栏配色
+
+登录/注册成功后，除欢迎标题（金，停留约 3 秒）外，聊天栏显示一块**双线外框面板**（整块套一个 `╔═╗║╚╝` 框，标题「登录成功」在顶框内），框内为**三段式**，每段以青色加粗的分隔线标题打头，段内内容统一缩进对齐：
+
+- **登录时间**（`━━━━━ 登录时间 ━━━━━`）——「现在是 10月9日 星期四 21:30」（青，随服务器本地时区；`language=en_us` 时为英文格式）
+- **邮箱**（`━━━━━ 邮箱 ━━━━━`）——「你有 N 条未读留言」（金，无未读则不显示）；下一排绿色可点按钮：**查看**（`/yzts mail list`）· **写信** · **邮箱管理**
+- **账号**（`━━━━━ 账号 ━━━━━`）——一排绿色可点按钮：**账户** · **指南**（`/yzts help`）
+
+其中写信/邮箱管理/账户点击即打开对应 GUI（箱式按钮面板）；查看与指南只把命令填入输入框，由玩家确认发送。
+
+**方框渲染**：所有多行聊天输出统一走 `ChatBox`（`com.yztc.auth.ui.ChatBox`）——登录面板、`/yzts mail list`、`/yzts mail board`、`/yzts admin risk list`、`/yzts migrate` 结果、登出二选一提示、高风险未处理提醒，均套双线框（框线金、标题金加粗，内容行按原样嵌入，保留其配色与点击按钮）。宽度按**列宽模型**（`TextWidth`：CJK/假名/全角算 2 列，其余算 1 列）计算，保证框内各行左右边框对齐到同一列。**注意**：原版正文字体为比例字体，此模型不追求逐像素对齐（那需内嵌全套字体宽度表）；启动横幅沿用同一模型。
+
+GUI 说明：写信/邮箱管理/账户设置/管理面板均为服务端箱式界面（原版客户端可见，无需装 mod）——箱内每个图标即一个按钮，点击触发，物品取不走；高风险记录面板点条目进详情页（时间为 `yyyy-MM-dd HH:mm:ss`，含操作/操作者/目标/说明）。需要键入文字的步骤（留言正文、当前/新密码、邮箱）走铁砧输入框。
+
+聊天栏消息统一配色（集中于 `Lang` 的调色板）：成功=绿、失败/拒绝=红、需注意（安全提醒、未读、危险操作）=金、引导=黄、信息/查询结果=青、次要/空态=灰。改色只需调整该调色板。
+
+## 5.3 高风险操作记录
+
+把管理类危险操作落成可查、可标记处理的台账（`config/yzt_super/risk.json`）。记录<b>只含 时间 / 操作者 / 动作 / 目标</b>，绝不含明文密码。
+
+被记录的动作：重置他人密码、删除账号、强制登录、强制登出、踢人、设置/关闭闸门、数据迁移、传送到记录位置。
+
+- **管理员登录后**：若有未处理记录，聊天栏额外显示「当前有 N 条高风险记录未处理」+「查看」按钮（点击打开面板）。
+- **管理方式**：`/yzts admin risk` 开面板列出未处理记录，**点某条纸物品展开详情页**（时间 / 操作 / 操作者 / 目标 / 说明五行），详情页里点「标记已处理」处理、点「返回列表」回到列表（标记后保留记录，不删除）；`/yzts admin risk list` 看全部（含已处理）；`/yzts admin risk done <id>` 命令行标记。
+- 上限 500 条，超出按时间丢弃最早条目（已处理者优先）。
+
+## 5.4 进服/过闸自动弹密码框
+
+进服（或过闸成功接登录）时，除屏幕标题与聊天栏按钮外，会**自动弹出一个铁砧输入框**，玩家可直接输密码：
+
+- 铁砧窗口的**标题栏写着操作说明**（如「输入密码，输完按 Esc 提交」），玩家一打开框就知道怎么用。
+- 点左侧格子里的**占位纸**后即可在名字框输入密码，**输好按 Esc 提交**；结果槽恒空，框里没有需要点的地方。占位纸不可取走，仅用于让名字栏保持可编辑。
+- 若**什么都没输入就关屏**，视为取消，聊天栏给出「您取消了输入」。聊天栏按钮仍在，**点聊天栏绿色按钮即重新弹出该框**（按钮为「点击即执行」，直接开框，而非只把命令填入输入框）。
+- 闸门开启时：先弹闸门框；**过闸成功立即自动接上登录/注册框**（已注册→登录框，未注册→注册框）。
+- 提交后若失败（密码错 / 未注册等），框会关闭并给出提示；再点聊天栏按钮即可重输。
+- 原版客户端同样适用（铁砧是原版界面，无需装 mod）。
+- 命令行等价入口：`/yzts gate`（无参数）开闸门框、`/yzts login`（无参数）开登录/注册框；带参数则照常直接验密。
+
+> 提示：输入框内的密码在本地屏幕可见（见 §10 已知限制）。
+
+## 5.5 全服大喇叭
+
+管理员 `/yzts say`、玩家 `/yzts shout` 两条广播指令；无参数时弹铁砧输入框（个人中心也有「喊话」按钮）。
+
+- **分角色双通道**：管理员公告走配置里开启的**全部通道**（默认聊天栏 + 屏幕标题）；玩家喊话固定**仅聊天栏**，且带冷却（默认 60 秒，管理员/控制台免冷却）。
+- **玩家颜色默认不允许**：玩家喊话里的 `&a` / `§a` 之类颜色码会被剥成纯文本（管理员公告可含颜色）。长度按去空白后的原始长度限制（默认 128 字），防止用颜色码绕过上限。
+- 广播用原版机制（`PlayerList.broadcastSystemMessage` + 标题/副标题包），**零自定义网络包**，原版客户端可见。
 
 ## 6. 数据与配置落点
 
 | 文件 | 位置 | 说明 |
 |---|---|---|
-| 账号库 | `config/yztauth/users.json` | PBKDF2 哈希，Base64 盐与摘要 |
-| 留言库 | `config/yztauth/mail.json` | 私信与公开留言板（限量 + 超期自动清理） |
-| 位置库 | `config/yztauth/lastseen.json` | 每个玩家最后下线位置（一人一条） |
-| 审计日志 | `logs/yztauth-audit.log` | 登录/闸门结果行（名字 / IP / 结果词，无明文） |
-| 服务器配置 | `world/serverconfig/yztauth-server.toml` | Forge SERVER 配置按世界存放 |
+| 账号库 | `config/yzt_super/users.json` | PBKDF2 哈希，Base64 盐与摘要 |
+| 留言库 | `config/yzt_super/mail.json` | 私信与公开留言板（限量 + 超期自动清理） |
+| 位置库 | `config/yzt_super/lastseen.json` | 每个玩家最后下线位置（一人一条） |
+| 高风险库 | `config/yzt_super/risk.json` | 管理类危险操作台账（只记动作/主体，无明文），上限 500 条 |
+| 审计日志 | `logs/yzt_super-audit.log` | 登录/闸门结果行（名字 / IP / 结果词，无明文） |
+| 服务器配置 | `world/serverconfig/yzt_super-server.toml` | Forge SERVER 配置按世界存放 |
 | SAuth 旧库 | `config/serverreg/users.json` | 只读迁移源，迁移完可归档 |
 
-主要配置项（`world/serverconfig/yztauth-server.toml`）：`minPasswordLength`、`maxLoginAttempts`、`lockoutSeconds`、`pbkdf2Iterations`、`ipRateLimit.count`、`ipRateLimit.windowSeconds`、`loginTimeoutSeconds`、`ipResolution`、`forwardedHeaderName`、`logoutMode`、`logoutThrottleSeconds`、`legacyUsersFile`。
+主要配置项（`world/serverconfig/yzt_super-server.toml`）：`minPasswordLength`、`maxLoginAttempts`、`lockoutSeconds`、`pbkdf2Iterations`、`ipRateLimit.count`、`ipRateLimit.windowSeconds`、`loginTimeoutSeconds`、`ipResolution`、`forwardedHeaderName`、`logoutMode`、`logoutThrottleSeconds`、`legacyUsersFile`。
 
 扩展功能配置（同文件 `[feature]` 段）：
 
@@ -93,32 +164,51 @@ gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
 |---|---|---|
 | `mailMaxPerPlayer` | 20 | 每人私信上限，超出拒收 |
 | `mailExpireDays` | 30 | 留言超期天数，超期自动清理 |
-| `auditLogEnabled` | true | 是否写 `logs/yztauth-audit.log` |
+| `auditLogEnabled` | true | 是否写 `logs/yzt_super-audit.log` |
 | `notifyAdminOnLogin` | true | 玩家登录时是否通知在线管理员 |
 | `afkLogoutEnabled` | false | AFK 自动登出开关（**默认关闭**） |
 | `afkLogoutSeconds` | 600 | AFK 判定秒数（无位移即计时） |
 | `welcomeTitleText` | 空 | 自定义欢迎标题（空=用语言键） |
 | `welcomeSubText` | 空 | 自定义欢迎副标题（空=用语言键，`%s`=玩家名） |
+| `startupBanner` | true | 开服时打印启动横幅（控制台 + 首个管理员进服发一次） |
+| `serverName` | 空 | 横幅品牌行显示的服务器名（空=不显示品牌行） |
+| `language` | zh_cn | 服务端兜底语言：`zh_cn` \| `en_us`。既决定横幅标签，也决定**未装 mod 的原版客户端**看到的提示文案（装了 mod 的客户端按各自客户端语言渲染） |
 
 `ipResolution=auto` 会尝试取代理头；直连环境保持 `auto` 即可，反代后置为 `header` 并核对 `forwardedHeaderName`。
 
+大喇叭配置（同文件 `[broadcast]` 段）：
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `cooldownSeconds` | 60 | 玩家喊话冷却（秒），0=无冷却 |
+| `allowPlayerColors` | false | 是否允许玩家喊话里使用颜色码 |
+| `prefix` | `[公告]` | 广播前缀（空=不显示） |
+| `channel.chat` | true | 管理员公告：发聊天栏 |
+| `channel.title` | true | 管理员公告：发屏幕标题 |
+| `channel.subtitle` | false | 管理员公告：发屏幕副标题 |
+| `channel.actionbar` | false | 管理员公告：发 actionbar |
+| `maxLength` | 128 | 广播内容长度上限（字符） |
+
 ## 7. 回滚
 
-换回 `SAuth-2.0.0.jar` 即可。新库在 `config/yztauth/users.json`，与 `config/serverreg/users.json` 无耦合；回滚不影响旧文件。若回滚前有人改过密，需在 SAuth 侧另行重置。
+换回 `SAuth-2.0.0.jar` 即可。新库在 `config/yzt_super/users.json`，与 `config/serverreg/users.json` 无耦合；回滚不影响旧文件。若回滚前有人改过密，需在 SAuth 侧另行重置。
 
-## 8. 书页 clickEvent 支持性（已由字节码核实）
+## 8. 书页 clickEvent 支持性（已由字节码核实：**不生效**）
 
-1.20.1 客户端支持书页内 clickEvent。核实路径（`forge-1.20.1-47.4.0_mapped_official_1.20.1.jar`）：
+1.20.1 客户端**不支持**书页内 `suggest_command` 点击。核实路径（`forge-1.20.1-47.4.0_mapped_official_1.20.1.jar`，`javap`）：
 
-- `BookViewScreen.mouseClicked(double,double,int)` → `handleComponentClicked(getClickedComponentStyleAt(x,y))`
-- `getClickedComponentStyleAt` 在 `cachedPageComponents` 上按 `font` 度量命中样式（含 clickEvent）
-- `BookViewScreen.handleComponentClicked(Style)` → `Screen.handleComponentClicked`，后者分派 `OPEN_URL` / `OPEN_FILE` / `SUGGEST_COMMAND` / `RUN_COMMAND` / `COPY_TO_CLIPBOARD`；仅当动作为 `RUN_COMMAND` 时额外 `closeScreen()`
+- `Screen.handleComponentClicked` 对 `SUGGEST_COMMAND` 调 `insertText(filterText(value), true)`
+- 而 `Screen.insertText(String, boolean)` 在 1.20.1 是**空方法**（`protected void insertText(...) { return; }`）
+- `BookViewScreen.handleComponentClicked` 只 `super.handleComponentClicked(style)`，不自已处理 `suggest_command`
+- 结论：书内 `suggest_command` 点击**什么都不做**（`RUN_COMMAND` 才有效：委派 `Screen` 发命令并 `closeScreen()`）
 
-本 mod 的指南书用 `suggest_command`，故书页点击**预期生效**（把命令填入聊天框，由玩家确认发送）。此项已由客户端字节码核实，仍建议在下面走查用例 13 中做一次端到端确认。
+因此指南书**改为纯文本页**（无任何 clickEvent），正文直接指路可用的聊天栏绿色按钮与手输命令；点击能力由聊天栏按钮承担（聊天栏不是 Screen，`suggest_command` 会正常把命令填进输入框）。`suggest_command` 按钮若要点开铁砧框，用 `run_command`（见 `WelcomeSync.button` → `ChatPrompt.runButton`）。
+
+另：`give()` 里放书后会把书放进可用的**热栏格**并同步选中格，否则 `ClientboundOpenBookPacket(MAIN_HAND)` 打开的当前选中格不是书，玩家点了不开。
 
 ## 9. 验收记录（Spec §7 的 17 条用例）
 
-自动化覆盖率：`gradle selfTest` 276 条纯逻辑用例全绿，覆盖哈希/存储/限流/迁移/语言/闸门/密码工具/UI 会话/书页 NBT/验密/闸门决策/登出禁重连/闸门限流，以及本批新增的密码强度/审计行格式/留言与位置存储/倒计时与欢迎语构建/Tab 隐藏纯逻辑/位置文本/状态文本/收件名校验/AFK 朝向判定/登出重隐藏。以下 32 条依赖真实客户端交互，**本次未由构建流程执行**，需在 `runServer` + `runClient` 手工走查后填写：
+自动化覆盖率：`gradle selfTest` 1270 条纯逻辑用例全绿，覆盖哈希/存储/限流/迁移/语言/闸门/密码工具/UI 会话/书页 NBT（纯文本、无点击）/验密/闸门决策/登出禁重连/闸门限流，以及本批新增的密码强度/审计行格式/留言与位置存储/倒计时与欢迎语构建/Tab 隐藏纯逻辑/位置文本/状态文本/收件名校验/AFK 朝向判定/登出重隐藏/启动横幅排版/消息配色/登录面板/按钮面板行数（含显式槽位与只读项）/双线方框排版（ChatBox/TextWidth）/高风险记录存储与文本/高风险详情行/大喇叭纯逻辑（通道选择/冷却取整/颜色剥离与净化/文本组装）/服务端兜底文本（ServerLang）/聊天栏按钮点击动作（suggest 与 run）/**ServerLang 引用键已声明**。以下 44 条依赖真实客户端交互，**本次未由构建流程执行**，需在 `runServer` + `runClient` 手工走查后填写：
 
 | # | 用例 | 结果 |
 |---|---|---|
@@ -129,34 +219,48 @@ gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
 | 5 | 锁定状态跨服务器重启保持 | 待实测 |
 | 6 | IP 限流：快速多次尝试被限 | 待实测 |
 | 7 | 超时踢出：进服不登录，到时断开且消息正确 | 待实测 |
-| 8 | 封锁完整性：未登录时移动回拉、右键/破坏/放置/攻击/丢弃/拾取、**执行任意指令**（只放行 `/login` `/register` `/yztauth gate\|login\|register\|help`）全拦；登录后恢复 | 待实测 |
+| 8 | 封锁完整性：未登录时移动回拉、右键/破坏/放置/攻击/丢弃/拾取、**执行任意指令**（只放行 `/login` `/register` `/yzts gate\|login\|register\|help`）全拦；登录后恢复 | 待实测 |
 | 9 | 迁移：混入非法 hex / 空键 / 重名条目，验证计数与逐条失败报告；`--dry-run` 不落库；重复幂等 | 待实测 |
 | 10 | 迁移后老密码可登录，首次登录后该条变为 `pbkdf2-sha256` | 待实测 |
 | 11 | 权限：装 LP 与不装 LP 下，普通 / OP / 管理员 / 最高权四档正确 | 待实测 |
 | 12 | 危险操作二次验密：密码错时操作不执行 | 待实测 |
-| 13 | 书 / 聊天按钮 / 铁砧 GUI 可点击与取消（含书内 clickEvent 确认） | 待实测 |
-| 14 | 控制台执行 `/yztauth migrate` 成功 | 待实测 |
+| 13 | 指南书（纯文本，无点击）能正常打开与翻页（书落热栏、`/yzts help` 生效、`/yzts account email`）；铁砧 GUI 输入后**按 Esc 提交**（什么都不输就关屏为取消并提示「您取消了输入」）；聊天栏绿色按钮点击可执行 | 待实测 |
+| 14 | 控制台执行 `/yzts admin migrate` 成功 | 待实测 |
 | 15 | 闸门：未设时直达登录；设后所有人先过闸，输错被限流、超时踢出；`clear` 后恢复直达 | 待实测 |
-| 16 | 最高权分隔：`yztauth.admin` 不能改闸门密码；`yztauth.gate` 能改且需二次验密 | 待实测 |
+| 16 | 最高权分隔：`yzt_super.admin` 不能改闸门密码；`yzt_super.gate` 能改且需二次验密 | 待实测 |
 | 17 | 控制台管理权限：重置密码 / 删号成功，无需二次验密 | 待实测 |
 | 18 | 提示观感：标题持续闪烁；金标题 / 黄副标题 / 绿下划线可点按钮；聊天栏按钮文本与副标题不同；登录成功显示金色欢迎语 | 待实测 |
-| 19 | 未装本 mod 的客户端被拒登入（`displayTest=MATCH_VERSION`）；装了同版本 mod 的客户端正常进服且提示为中文 | 待实测 |
-| 20 | 倒计时：未登录提示副标题随闪烁显示「剩余 N 秒」，归零前被超时踢出 | 待实测 |
-| 21 | 审计日志：输错密码后 `logs/yztauth-audit.log` 出现一行含名字/IP/`LOGIN_FAIL`，且**无明文** | 待实测 |
+| 19 | 客户端 mod 无关性（`displayTest=IGNORE_SERVER_VERSION`）：**未装本 mod 的原版客户端正常进服**，提示为中文兜底文本（`language=zh_cn`）；装了本 mod 的客户端正常进服且提示走本地翻译 | 待实测 |
+| 20 | 倒计时：未登录提示的**主标题**随闪烁显示「（剩余 N 秒）」，副标题保持引导语不变；归零前被超时踢出 | 待实测 |
+| 21 | 审计日志：输错密码后 `logs/yzt_super-audit.log` 出现一行含名字/IP/`LOGIN_FAIL`，且**无明文** | 待实测 |
 | 22 | Tab 隐藏：A 未登录时，B 的 Tab 看不到 A；A 登录后出现 | 待实测 |
 | 23 | 首进广播：新玩家首次进服，全服收到欢迎广播；老玩家进服不广播 | 待实测 |
 | 24 | 留言：A 给离线 B 发私信，B 登录收到未读提醒，`list` 可见；`post` 公开所有人可见；`del` 权限正确；私信超 20 条被拒 | 待实测 |
-| 25 | 位置：A 登出后 `/yztauth where A` 显示坐标；管理员 `/yztauth tp A` 传送成功；普通玩家 tp 被拒；控制台 tp 给出提示 | 待实测 |
+| 25 | 位置：A 登出后 `/yzts where A` 显示坐标；管理员 `/yzts where tp A` 传送成功；普通玩家 tp 被拒；控制台 tp 给出提示 | 待实测 |
 | 26 | 剩余次数：登录连输错密码，提示剩余次数递减；到 0 后提示锁定 | 待实测 |
 | 27 | 密码强度：注册时用 `abc`(弱)、`abcdef12`(中)、`Abcdef1!x`(强) 分别注册，提示强度正确 | 待实测 |
 | 28 | 登录通知管理员：管理员在线时，有玩家登录，管理员收到含 IP 提示；`notifyAdminOnLogin=false` 时不发 | 待实测 |
-| 29 | `/yztauth status`：返回在线人数与未登录名单；普通玩家被拒 | 待实测 |
+| 29 | `/yzts admin status`：返回在线人数与未登录名单；普通玩家被拒 | 待实测 |
 | 30 | 异地登录提醒：用不同 IP 再次登录，本人收到新 IP 提示；首次登录不提示 | 待实测 |
 | 31 | AFK（默认关闭）：`afkLogoutEnabled=false` 时挂机不登出；置 true 且 `afkLogoutSeconds` 调小后，挂机超时自动登出 | 待实测 |
 | 32 | 自定义欢迎语：`welcomeTitleText`/`welcomeSubText` 非空时，登录显示自定义文案且仍为金/黄配色 | 待实测 |
+| 33 | 写信 GUI：点「写信」按钮开面板，点在线玩家头像→铁砧输正文→**按 Esc 提交发送**（空输入关屏=放弃）→对方收到；物品取不走 | 待实测 |
+| 34 | 邮箱管理 GUI：点「管理」开面板列出收件箱（未读带标记+光效）；点某条进详情页读全文（自动标已读），详情页点「删除」再删并回列表；空邮箱显示「暂无留言」 | 待实测 |
+| 35 | 账户设置 GUI：点「账户」开面板，改密（旧+新两次铁砧输入）、设邮箱、登出、指南四项均生效；旧密码错时改密失败 | 待实测 |
+| 36 | 高风险记录：重置密码/删号/强制登录登出/踢人/闸门增删/迁移/传送后，`config/yzt_super/risk.json` 各出现一条（无明文）；管理员登录收「当前有 N 条未处理」提醒，点「查看」开面板，点条目展开详情页（时间/操作/操作者/目标/说明），详情页点「标记已处理」后 `list` 显示 [已处理] | 待实测 |
+| 37 | 进服自动弹框：进服即自动弹铁砧密码框；**按 Esc 提交验密**（什么都不输就关屏=取消并提示），之后可用聊天栏按钮重开该框；开闸门时先弹闸门框、过闸后自动接登录/注册框；原版客户端同样生效 | 待实测 |
+| 38 | 全部账号面板：`/yzts admin` 列出**含离线**的账号（在线=头像、离线=骷髅且名字置灰）；账号超过 45 个可翻页；对离线账号点「踢出/强制登录/强制登出」给「不在线」提示 | 待实测 |
+| 39 | 删号踢服：删除一个**正在线**的账号后，该玩家被直接断开连接（收到「账号已被删除」提示）；删离线账号无此影响 | 待实测 |
+| 40 | 登出二选一：裸 `/yzts logout` 出聊天栏两按钮——「退出服务器」断开、「仅登出账号」留在服内锁定态；`quit`/`stay` 直接执行不弹选择 | 待实测 |
+| 41 | 邮箱只能设一次：首次 `/yzts account email <地址>` 直接绑定并显示打码邮箱；再次改绑需先输当前邮箱、再输密码，两项都对才成功，任一不符给出对应失败提示 | 待实测 |
+| 42 | 方框渲染：登录成功面板、`/yzts mail list`、`/yzts mail board`、`/yzts admin risk list`、`/yzts migrate` 结果、登出二选一提示、高风险未处理提醒均套双线框；框内各行左右边框对齐到同一列（比例字体下按列宽模型近似，非像素级） | 待实测 |
+| 43 | 大喇叭公告：管理员 `/yzts say <内容>` 按配置通道广播（默认聊天栏+标题）；开启副标题/actionbar 后对应位置出内容；裸 `/yzts say` 开铁砧框；普通玩家 `/yzts say` 被拒 | 待实测 |
+| 44 | 大喇叭喊话：玩家 `/yzts shout` 连发第二条被冷却拦截并提示剩余秒数；含 `&a` 的颜色码被剥成纯文本；超长被拒；个人中心「喊话」按钮开铁砧框 | 待实测 |
 
 ## 10. 已知限制
 
 - 离线模式无传输加密，密码明文过网（指令与 GUI 皆然）；非本 mod 引入。
 - 铁砧输入框内密码本地可见。
+- 铁砧输入框点左侧占位纸后输入，**输好按 Esc 提交**；什么都不输就关屏 = 取消（提示「您取消了输入」）。
+- 指南书为**纯文本**（1.20.1 书页内点击无效，见 §8），点书页不会有任何跳转；命令请用聊天栏绿色按钮或手输。
 - 裸指令 `/login` `/register` 依赖 SAuth 已卸载。

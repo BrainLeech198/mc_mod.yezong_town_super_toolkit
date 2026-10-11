@@ -13,6 +13,7 @@ import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
@@ -40,7 +41,7 @@ public final class LockdownHandler {
         int colon = head.indexOf(':');
         if (colon >= 0) head = head.substring(colon + 1);
         if (ALLOWED_BARE.contains(head)) return true;
-        if (head.equals("yztauth")) {
+        if (head.equals("yzts")) {
             if (parts.length < 2) return false;
             return ALLOWED_SUB.contains(parts[1].toLowerCase(Locale.ROOT));
         }
@@ -134,5 +135,15 @@ public final class LockdownHandler {
     @SubscribeEvent
     public static void onPickup(EntityItemPickupEvent e) {
         if (e.getEntity() instanceof ServerPlayer p && locked(p)) e.setCanceled(true);
+    }
+
+    /** 未登录玩家不能发言（含 /me、/say 之外的聊天；聊天栏发言走此事件）。 */
+    @SubscribeEvent
+    public static void onChat(ServerChatEvent event) {
+        ServerPlayer p = event.getPlayer();
+        if (p != null && locked(p)) {
+            event.setCanceled(true);
+            p.sendSystemMessage(Lang.msg("need_login"));
+        }
     }
 }

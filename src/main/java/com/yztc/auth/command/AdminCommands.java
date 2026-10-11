@@ -8,9 +8,9 @@ import com.yztc.auth.data.Account;
 import com.yztc.auth.data.PasswordUtil;
 import com.yztc.auth.lang.Lang;
 import com.yztc.auth.perm.Permissions;
+import com.yztc.auth.risk.RiskLog;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -27,22 +27,51 @@ public final class AdminCommands {
 
     public static GateManager gate() { return gateRef; }
 
+    /** 把管理员专属命令统一挂到 {@code /yzts admin ...} 下（OP / LuckPerms / 控制台可用）。 */
     public static void attach(LiteralArgumentBuilder<CommandSourceStack> root, AuthManager auth, GateManager gate) {
-        root.then(Commands.literal("admin").executes(ctx -> {
+        LiteralArgumentBuilder<CommandSourceStack> admin = Commands.literal("admin")
+                .requires(s -> !s.isPlayer() || Permissions.isAdmin(s.getPlayer()));
+
+        // 裸 /yzts admin = 打开管理面板
+        admin.executes(ctx -> {
             if (gatedOut(ctx.getSource(), auth)) return 0;
-            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            ServerPlayer p = ctx.getSource().getPlayer();
+            if (p == null) { ctx.getSource().sendFailure(Lang.msg("in_game_only")); return 0; }
             if (!Permissions.isAdmin(p)) { ctx.getSource().sendFailure(Lang.msg("no_permission")); return 0; }
             com.yztc.auth.ui.AdminPanel.open(p.getServer(), p, auth, gate, ctx.getSource());
             return 1;
-        }));
+        });
 
-        root.then(Commands.literal("migrate")
+        admin.then(Commands.literal("setpassword")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("password", StringArgumentType.greedyString())
+                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                        : setOtherPassword(ctx.getSource(), auth,
+                                                StringArgumentType.getString(ctx, "player"),
+                                                StringArgumentType.getString(ctx, "password"))))));
+
+        admin.then(Commands.literal("delete")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                : deleteAccount(ctx.getSource(), StringArgumentType.getString(ctx, "player")))));
+
+        admin.then(Commands.literal("forcelogin")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                : forceLogin(ctx.getSource(), auth, StringArgumentType.getString(ctx, "player")))));
+
+        admin.then(Commands.literal("kick")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
+                                : kick(ctx.getSource(), StringArgumentType.getString(ctx, "player")))));
+
+        admin.then(Commands.literal("migrate")
                 .requires(s -> s.hasPermission(2) || !s.isPlayer())
                 .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0 : MigrateCommand.run(ctx.getSource(), false))
                 .then(Commands.literal("--dry-run")
                         .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0 : MigrateCommand.run(ctx.getSource(), true))));
 
-        root.then(Commands.literal("serverpassword")
+        admin.then(Commands.literal("serverpassword")
                 .then(Commands.literal("set")
                         .then(Commands.argument("password", StringArgumentType.greedyString())
                                 .executes(ctx -> changeGate(ctx.getSource(), auth, gate,
@@ -50,28 +79,11 @@ public final class AdminCommands {
                 .then(Commands.literal("clear")
                         .executes(ctx -> changeGate(ctx.getSource(), auth, gate, null, false))));
 
-        // 控制台可用的管理操作（重置密码/删号/强制登录/踢出）
-        root.then(Commands.literal("op")
-                .requires(s -> !s.isPlayer() || Permissions.isAdmin(s.getPlayer()))
-                .then(Commands.literal("setpassword")
-                        .then(Commands.argument("player", StringArgumentType.word())
-                                .then(Commands.argument("password", StringArgumentType.greedyString())
-                                        .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
-                                                : setOtherPassword(ctx.getSource(), auth,
-                                                        StringArgumentType.getString(ctx, "player"),
-                                                        StringArgumentType.getString(ctx, "password"))))))
-                .then(Commands.literal("delete")
-                        .then(Commands.argument("player", StringArgumentType.word())
-                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
-                                        : deleteAccount(ctx.getSource(), StringArgumentType.getString(ctx, "player")))))
-                .then(Commands.literal("forcelogin")
-                        .then(Commands.argument("player", StringArgumentType.word())
-                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
-                                        : forceLogin(ctx.getSource(), auth, StringArgumentType.getString(ctx, "player")))))
-                .then(Commands.literal("kick")
-                        .then(Commands.argument("player", StringArgumentType.word())
-                                .executes(ctx -> gatedOut(ctx.getSource(), auth) ? 0
-                                        : kick(ctx.getSource(), StringArgumentType.getString(ctx, "player"))))));
+        StatusCommand.attach(admin, auth);
+        RiskCommand.attach(admin, auth);
+        com.yztc.auth.title.TitleCommand.attachAdmin(admin, auth);
+
+        root.then(admin);
     }
 
     /** 未过闸者一律拒绝（含管理员）。返回 true 表示已拒绝并已提示。 */
@@ -91,7 +103,7 @@ public final class AdminCommands {
         ServerPlayer p = src.getPlayer();
         if (p == null) return applyGate(src, gate, pw, isSet);
         if (!Permissions.isGateKeeper(p)) { src.sendFailure(Lang.msg("no_permission")); return 0; }
-        com.yztc.auth.ui.AdminPanel.stepUp(p, auth, isSet ? "确认修改全服闸门密码" : "确认关闭全服闸门",
+        com.yztc.auth.ui.AdminPanel.stepUp(p, auth, Lang.msg(isSet ? "gate_confirm_set" : "gate_confirm_clear"),
                 verified -> { if (gateChangeAllowed(true, verified)) applyGate(src, gate, pw, isSet); });
         return 1;
     }
@@ -100,14 +112,15 @@ public final class AdminCommands {
         try {
             if (isSet) {
                 gate.set(pw);
-                src.sendSuccess(() -> Component.literal("全服闸门密码已设置"), true);
+                src.sendSuccess(() -> Lang.msg("gate_set_ok"), true);
             } else {
                 gate.clear();
-                src.sendSuccess(() -> Component.literal("全服闸门已关闭"), true);
+                src.sendSuccess(() -> Lang.msg("gate_clear_ok"), true);
             }
+            RiskLog.record(isSet ? RiskLog.GATE_SET : RiskLog.GATE_CLEAR, RiskLog.actorOf(src), null, null);
             return 1;
         } catch (IOException e) {
-            src.sendFailure(Component.literal("写盘失败：" + e.getMessage()));
+            src.sendFailure(Lang.msg("err_save", e.getMessage()));
             return 0;
         }
     }
@@ -115,13 +128,14 @@ public final class AdminCommands {
     public static int setOtherPassword(CommandSourceStack src, AuthManager auth, String name, String pw) {
         String key = name.toLowerCase(Locale.ROOT);
         Account a = com.yztc.auth.data.StoreHolder.get().get(key);
-        if (a == null) { src.sendFailure(Component.literal("无此账号：" + name)); return 0; }
+        if (a == null) { src.sendFailure(Lang.msg("admin_no_account", name)); return 0; }
         PasswordUtil.assign(a, pw, com.yztc.auth.config.AuthConfig.pbkdf2Iterations());
         com.yztc.auth.data.StoreHolder.get().put(key, a);
         try { com.yztc.auth.data.StoreHolder.get().save(); } catch (IOException e) {
-            src.sendFailure(Component.literal("写盘失败：" + e.getMessage())); return 0;
+            src.sendFailure(Lang.msg("err_save", e.getMessage())); return 0;
         }
-        src.sendSuccess(() -> Component.literal("已重置 " + name + " 的密码"), true);
+        src.sendSuccess(() -> Lang.msg("admin_reset_ok", name), true);
+        RiskLog.record(RiskLog.PASSWORD_RESET, RiskLog.actorOf(src), key, null);
         return 1;
     }
 
@@ -129,24 +143,32 @@ public final class AdminCommands {
         String key = name.toLowerCase(Locale.ROOT);
         boolean removed = com.yztc.auth.data.StoreHolder.get().remove(key);
         try { com.yztc.auth.data.StoreHolder.get().save(); } catch (IOException ignored) {}
-        src.sendSuccess(() -> Component.literal(removed ? "已删除账号 " + name : "无此账号：" + name), true);
+        src.sendSuccess(() -> Lang.msg(removed ? "admin_delete_ok" : "admin_no_account", name), true);
+        if (removed) {
+            RiskLog.record(RiskLog.ACCOUNT_DELETE, RiskLog.actorOf(src), key, null);
+            // 账号已删除：若其人正在线，直接断开（认证态随退服事件一并清理）
+            ServerPlayer online = find(src.getServer(), name);
+            if (online != null) online.connection.disconnect(Lang.msg("admin_delete_kick"));
+        }
         return removed ? 1 : 0;
     }
 
     public static int forceLogin(CommandSourceStack src, AuthManager auth, String name) {
         ServerPlayer target = find(src.getServer(), name);
-        if (target == null) { src.sendFailure(Component.literal("玩家不在线：" + name)); return 0; }
+        if (target == null) { src.sendFailure(Lang.msg("admin_no_online_player", name)); return 0; }
         auth.forceAuthenticate(target);
         target.sendSystemMessage(Lang.msg("admin_force_login"));
-        src.sendSuccess(() -> Component.literal("已强制 " + name + " 登录"), true);
+        src.sendSuccess(() -> Lang.msg("admin_force_login_ok", name), true);
+        RiskLog.record(RiskLog.FORCE_LOGIN, RiskLog.actorOf(src), name.toLowerCase(Locale.ROOT), null);
         return 1;
     }
 
     public static int kick(CommandSourceStack src, String name) {
         ServerPlayer target = find(src.getServer(), name);
-        if (target == null) { src.sendFailure(Component.literal("玩家不在线：" + name)); return 0; }
+        if (target == null) { src.sendFailure(Lang.msg("admin_no_online_player", name)); return 0; }
         target.connection.disconnect(Lang.msg("admin_kick"));
-        src.sendSuccess(() -> Component.literal("已踢出 " + name), true);
+        src.sendSuccess(() -> Lang.msg("admin_kick_ok", name), true);
+        RiskLog.record(RiskLog.KICK, RiskLog.actorOf(src), name.toLowerCase(Locale.ROOT), null);
         return 1;
     }
 

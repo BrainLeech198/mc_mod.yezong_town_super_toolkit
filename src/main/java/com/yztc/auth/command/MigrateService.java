@@ -2,6 +2,7 @@ package com.yztc.auth.command;
 
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.AccountStore;
+import com.yztc.auth.lang.ServerLang;
 import com.yztc.auth.security.PasswordHasher;
 
 import java.util.ArrayList;
@@ -20,7 +21,8 @@ public final class MigrateService {
 
     public record Report(int total, int imported, int skipped, int failed, List<EntryResult> details) {
         public String summary() {
-            return "总计=" + total + " 导入=" + imported + " 跳过=" + skipped + " 失败=" + failed;
+            return String.format(ServerLang.template("migrate_summary"),
+                    total, imported, skipped, failed);
         }
     }
 
@@ -35,23 +37,23 @@ public final class MigrateService {
 
             if (rawName == null || rawName.isBlank()) {
                 failed++;
-                details.add(new EntryResult(String.valueOf(rawName), Status.FAILED, "玩家名为空"));
+                details.add(new EntryResult(String.valueOf(rawName), Status.FAILED, ServerLang.template("migrate_reason_empty_name")));
                 continue;
             }
             String name = rawName.toLowerCase(Locale.ROOT);
             if (!NAME.matcher(name).matches()) {
                 failed++;
-                details.add(new EntryResult(name, Status.FAILED, "玩家名非法：" + rawName));
+                details.add(new EntryResult(name, Status.FAILED, String.format(ServerLang.template("migrate_reason_bad_name"), rawName)));
                 continue;
             }
             if (value == null || !HEX64.matcher(value).matches()) {
                 failed++;
-                details.add(new EntryResult(name, Status.FAILED, "哈希非法（需 64 位十六进制）"));
+                details.add(new EntryResult(name, Status.FAILED, ServerLang.template("migrate_reason_bad_hash")));
                 continue;
             }
             if (target.contains(name)) {
                 skipped++;
-                details.add(new EntryResult(name, Status.SKIPPED, "目标库已存在同名账号"));
+                details.add(new EntryResult(name, Status.SKIPPED, ServerLang.template("migrate_reason_exists")));
                 continue;
             }
 

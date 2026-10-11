@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.data.AccountStore;
 import com.yztc.auth.data.StoreHolder;
+import com.yztc.auth.lang.Lang;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 
@@ -22,7 +23,7 @@ public final class MigrateCommand {
         AccountStore store = StoreHolder.get();
         Path legacyPath = Path.of(AuthConfig.legacyUsersFile());
         if (!Files.exists(legacyPath)) {
-            src.sendFailure(Component.literal("找不到 SAuth 文件：" + legacyPath));
+            src.sendFailure(Lang.msg("migrate_no_file", legacyPath.toString()));
             return 0;
         }
         Map<String, String> legacy = new LinkedHashMap<>();
@@ -33,25 +34,33 @@ public final class MigrateCommand {
                 legacy.put(e.getKey(), e.getValue().isJsonPrimitive() ? e.getValue().getAsString() : null);
             }
         } catch (Exception e) {
-            src.sendFailure(Component.literal("SAuth 文件解析失败：" + e.getMessage()));
+            src.sendFailure(Lang.msg("migrate_parse_fail", e.getMessage()));
             return 0;
         }
 
         MigrateService.Report rep = MigrateService.migrate(legacy, store, dryRun, System.currentTimeMillis());
         if (!dryRun) {
             try { store.save(); } catch (Exception e) {
-                src.sendFailure(Component.literal("写盘失败：" + e.getMessage()));
+                src.sendFailure(Lang.msg("err_save", e.getMessage()));
                 return 0;
             }
+            com.yztc.auth.risk.RiskLog.record(com.yztc.auth.risk.RiskLog.MIGRATE,
+                    com.yztc.auth.risk.RiskLog.actorOf(src), null, rep.summary());
         }
-        String head = (dryRun ? "[DRY-RUN] " : "") + "迁移完成：" + rep.summary();
-        src.sendSuccess(() -> Component.literal(head), true);
+        Component head = Component.literal(dryRun ? "[DRY-RUN] " : "").append(Lang.msg("migrate_done", rep.summary()));
+        java.util.List<Component> lines = new java.util.ArrayList<>();
         for (MigrateService.EntryResult r : rep.details()) {
             if (r.status() == MigrateService.Status.FAILED) {
-                src.sendSuccess(() -> Component.literal("  失败 " + r.name() + "：" + r.reason()), false);
+                lines.add(Lang.msg("migrate_fail_line", r.name(), r.reason()));
             } else if (r.status() == MigrateService.Status.SKIPPED) {
-                src.sendSuccess(() -> Component.literal("  跳过 " + r.name() + "：" + r.reason()), false);
+                lines.add(Lang.msg("migrate_skip_line", r.name(), r.reason()));
             }
+        }
+        java.util.List<Component> boxed = com.yztc.auth.ui.ChatBox.box(head, lines);
+        for (int i = 0; i < boxed.size(); i++) {
+            Component c = boxed.get(i);
+            boolean bcast = i == 0;
+            src.sendSuccess(() -> c, bcast);
         }
         return rep.failed() > 0 ? 1 : 1;
     }

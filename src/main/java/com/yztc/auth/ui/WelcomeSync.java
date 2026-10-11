@@ -23,6 +23,14 @@ public final class WelcomeSync {
                 .copy().withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD);
     }
 
+    /**
+     * 铁砧菜单标题：铁砧窗口只有标题一处可写字，故把「怎么用」压成一行放这里，
+     * 玩家一打开框就看到操作说明。不上色，贴近原版铁砧观感。
+     */
+    public static Component anvilTitle(boolean gate) {
+        return Lang.msg(gate ? "prompt_gate.anvil" : "prompt_login.anvil");
+    }
+
     /** 副标题（登录/注册路径）：黄色。registered=true 引导登录，否则引导注册。 */
     public static MutableComponent sub(boolean registered) {
         return Lang.msg(registered ? "prompt_login.sub" : "prompt_register.sub")
@@ -40,15 +48,23 @@ public final class WelcomeSync {
         return registered ? "prompt_login.button" : "prompt_register.button";
     }
 
-    /** 按钮点击要建议的命令（只填入输入框，由玩家确认）。 */
+    /** 按钮点击要执行的命令（无参数=打开对应铁砧输入框，即「回到 GUI」）。 */
     public static String commandFor(boolean gate, boolean registered) {
-        if (gate) return "/yztauth gate ";
-        return registered ? "/yztauth login " : "/yztauth register ";
+        if (gate) return "/yzts gate";
+        return registered ? "/yzts login" : "/yzts register";
     }
 
-    /** 聊天栏按钮：绿色下划线可点击。 */
+    /**
+     * 聊天栏提示：黄色前缀 + 两个绿色可点片段。
+     * 【GUI界面】run_command 直接弹铁砧框；【指令操作】suggest_command 把命令填进输入框，由玩家补密码后回车。
+     */
     public static Component button(boolean gate, boolean registered) {
-        return ChatPrompt.button(Lang.msg(buttonKey(gate, registered)), commandFor(gate, registered));
+        String cmd = commandFor(gate, registered);
+        MutableComponent line = Lang.msg(buttonKey(gate, registered)).copy().withStyle(ChatFormatting.YELLOW);
+        line.append(ChatPrompt.runButton(Lang.msg("btn_gui"), cmd));
+        line.append(Component.literal("  ").withStyle(ChatFormatting.DARK_GRAY));
+        line.append(ChatPrompt.button(Lang.msg("btn_cmd"), cmd + " "));
+        return line;
     }
 
     /** 欢迎标题：金色加粗。 */
@@ -64,6 +80,11 @@ public final class WelcomeSync {
     /** 倒计时后缀（如「（剩余 123 秒）」），不上色，交由调用方拼接。 */
     public static Component countdownSuffix(long secs) {
         return Lang.msg("prompt_countdown", secs);
+    }
+
+    /** 把倒计时后缀接到主标题后（倒计时放主标题，避免与副标题引导语挤在一起）。 */
+    public static MutableComponent titledWithCountdown(Component base, long secs) {
+        return base.copy().append(countdownSuffix(secs));
     }
 
     /** 首次进服的全服广播文本。 */
@@ -85,23 +106,23 @@ public final class WelcomeSync {
 
     // ---- 发送器 ----
 
-    /** 已注册→引导登录；未注册→引导注册（按钮自动填入对应命令）。 */
+    /** 已注册→引导登录；未注册→引导注册（按钮点击即重开对应铁砧 GUI）。 */
     public static void promptLogin(ServerPlayer p, AuthManager auth) {
         boolean registered = isRegistered(p, auth);
         TitleSink.send(p, title(false), sub(registered));
-        ChatPrompt.send(p, Lang.msg(buttonKey(false, registered)), commandFor(false, registered));
+        p.sendSystemMessage(button(false, registered));
     }
 
     public static void promptGate(ServerPlayer p) {
         TitleSink.send(p, title(true), gateSub());
-        ChatPrompt.send(p, Lang.msg(buttonKey(true, false)), commandFor(true, false));
+        p.sendSystemMessage(button(true, false));
     }
 
-    /** 登录/注册成功后：欢迎语（金标题 + 黄副标题，可用配置覆盖文案）。 */
+    /** 登录/注册成功后：欢迎语（金标题 + 黄副标题，可用配置覆盖文案）。停留约 3s 便于看清。 */
     public static void welcome(ServerPlayer p) {
         String name = p.getGameProfile().getName();
         TitleSink.send(p, resolveWelcomeTitle(AuthConfig.welcomeTitleText()),
-                resolveWelcomeSub(AuthConfig.welcomeSubText(), name));
+                resolveWelcomeSub(AuthConfig.welcomeSubText(), name), 10, 60, 10);
     }
 
     /** 闪烁重发：只重发标题/副标题，不刷聊天栏，避免刷屏。未认证时副标题附倒计时。 */
@@ -109,10 +130,10 @@ public final class WelcomeSync {
         PendingState st = PendingState.ALL.get(p.getUUID());
         if (st == null) return;
         if (!st.gatePassed) {
-            TitleSink.send(p, title(true), gateSub().append(countdownSuffix(remainSec)));
+            TitleSink.send(p, titledWithCountdown(title(true), remainSec), gateSub());
         } else {
             boolean registered = isRegistered(p, auth);
-            TitleSink.send(p, title(false), sub(registered).append(countdownSuffix(remainSec)));
+            TitleSink.send(p, titledWithCountdown(title(false), remainSec), sub(registered));
         }
     }
 

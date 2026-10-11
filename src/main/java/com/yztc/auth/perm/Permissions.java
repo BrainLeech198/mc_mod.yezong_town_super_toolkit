@@ -9,11 +9,11 @@ import java.lang.reflect.Method;
 import java.util.UUID;
 
 public final class Permissions {
-    private static final Logger LOGGER = LoggerFactory.getLogger("yztauth");
+    private static final Logger LOGGER = LoggerFactory.getLogger("yzt_super");
 
-    public static final String ADMIN = "yztauth.admin";
-    public static final String GATE = "yztauth.gate";
-    public static final String BYPASS_CONFIRM = "yztauth.bypass.confirm";
+    public static final String ADMIN = "yzt_super.admin";
+    public static final String GATE = "yzt_super.gate";
+    public static final String BYPASS_CONFIRM = "yzt_super.bypass.confirm";
 
     private static boolean lpChecked = false;
     private static boolean lpPresent = false;

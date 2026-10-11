@@ -24,14 +24,14 @@ import java.io.IOException;
 
 @Mod(YzAuthMod.MODID)
 public class YzAuthMod {
-    public static final String MODID = "yztauth";
+    public static final String MODID = "yzt_super";
     private static final Logger LOGGER = LoggerFactory.getLogger(MODID);
 
     // 47.4.0 里 registerConfig 本身未废弃，被标记 forRemoval 的只有静态 get()；
     // 唯一的构造器注入类型 FMLJavaModLoadingContext 同样是 forRemoval，故无更干净的写法。
     @SuppressWarnings("removal")
     public YzAuthMod() {
-        // SERVER 配置由 Forge 落在每个世界的 serverconfig/yztauth-server.toml
+        // SERVER 配置由 Forge 落在每个世界的 serverconfig/yzt_super-server.toml
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, AuthConfig.SPEC);
 
         AccountStore store = new AccountStore(
@@ -39,7 +39,7 @@ public class YzAuthMod {
         try {
             store.load();
         } catch (IOException e) {
-            LOGGER.error("[yztauth] 加载 users.json 失败，使用空库（旧文件保留）", e);
+            LOGGER.error("[yzt_super] 加载 users.json 失败，使用空库（旧文件保留）", e);
         }
         StoreHolder.set(store);
 
@@ -47,7 +47,10 @@ public class YzAuthMod {
         // 而 SERVER 配置要等世界加载后才可用，过早调用会取不到值。真正的 load 放在 ServerStarted。
         StoreHolder.setMail(new MailStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("mail.json")));
         StoreHolder.setLastSeen(new LastSeenStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("lastseen.json")));
-        StoreHolder.setAudit(new AuditLog(FMLPaths.GAMEDIR.get().resolve("logs").resolve("yztauth-audit.log")));
+        StoreHolder.setRisk(new com.yztc.auth.data.RiskStore(FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("risk.json")));
+        StoreHolder.setAudit(new AuditLog(FMLPaths.GAMEDIR.get().resolve("logs").resolve("yzt_super-audit.log")));
+        StoreHolder.setTitles(new com.yztc.auth.title.TitleStore(
+                FMLPaths.CONFIGDIR.get().resolve(MODID).resolve("titles.json")));
 
         GateManager gate = new GateManager(store);
         AuthManager auth = new AuthManager(store, gate);
@@ -58,5 +61,6 @@ public class YzAuthMod {
 
         MinecraftForge.EVENT_BUS.register(AuthEvents.class);
         MinecraftForge.EVENT_BUS.register(LockdownHandler.class);
+        MinecraftForge.EVENT_BUS.register(com.yztc.auth.title.TitleEvents.class);
     }
 }

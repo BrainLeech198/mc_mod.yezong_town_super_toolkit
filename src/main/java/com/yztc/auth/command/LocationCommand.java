@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Locale;
 
-/** `/yztauth where <玩家>` 与 `/yztauth tp <玩家>`：查询/传送到下线位置。 */
+/** `/yzts where <玩家>` 与 `/yzts where tp <玩家>`：查询/传送到下线位置。 */
 public final class LocationCommand {
     private LocationCommand() {}
 
@@ -44,16 +44,17 @@ public final class LocationCommand {
     }
 
     public static void attach(LiteralArgumentBuilder<CommandSourceStack> root, AuthManager auth) {
-        root.then(Commands.literal("where")
+        LiteralArgumentBuilder<CommandSourceStack> where = Commands.literal("where")
                 .then(Commands.argument("player", StringArgumentType.word())
                         .executes(ctx -> {
                             String q = StringArgumentType.getString(ctx, "player");
                             LastSeen s = lookup(q);
                             ctx.getSource().sendSuccess(() -> whereText(s, q), false);
                             return 1;
-                        })));
+                        }));
 
-        root.then(Commands.literal("tp")
+        // 传送归到 where 组下：/yzts where tp <玩家>
+        where.then(Commands.literal("tp")
                 .then(Commands.argument("player", StringArgumentType.word())
                         .executes(ctx -> {
                             CommandSourceStack src = ctx.getSource();
@@ -70,9 +71,14 @@ public final class LocationCommand {
                             ServerLevel level = resolveLevel(src.getServer(), s.dimension);
                             if (level == null) { src.sendFailure(tpFailText(s, q)); return 0; }
                             exec.teleportTo(level, s.x, s.y, s.z, s.yaw, s.pitch);
+                            com.yztc.auth.risk.RiskLog.record(com.yztc.auth.risk.RiskLog.TELEPORT,
+                                    exec.getGameProfile().getName().toLowerCase(Locale.ROOT),
+                                    s.name.toLowerCase(Locale.ROOT), null);
                             src.sendSuccess(() -> Lang.msg("tp_result", s.name), false);
                             return 1;
                         })));
+
+        root.then(where);
     }
 
     private static LastSeen lookup(String name) {

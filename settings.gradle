@@ -6,7 +6,7 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'yztauth'
+rootProject.name = 'yzt_super'
 
 // 必须在 build.gradle 的 plugins{} 应用 ForgeGradle 之前把国内镜像挂上，
 // 否则 ForgeGradle 注入的 forge 官方仓库会排在前面（国内连不上会无限挂起）。

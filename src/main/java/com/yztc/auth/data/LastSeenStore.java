@@ -17,7 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** 下线位置库（config/yztauth/lastseen.json）：一人一条，覆盖式更新。 */
+/** 下线位置库（config/yzt_super/lastseen.json）：一人一条，覆盖式更新。 */
 public final class LastSeenStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 

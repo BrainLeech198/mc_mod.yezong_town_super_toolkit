@@ -4,13 +4,14 @@ import com.yztc.auth.audit.AuditLog;
 import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.AccountStore;
-import com.yztc.auth.data.MailStore;
 import com.yztc.auth.data.StoreHolder;
 import com.yztc.auth.lang.Lang;
 import com.yztc.auth.lockdown.LockdownSync;
 import com.yztc.auth.perm.Permissions;
 import com.yztc.auth.security.PasswordHasher;
 import com.yztc.auth.ui.TabHider;
+import com.yztc.auth.ui.AuthGui;
+import com.yztc.auth.ui.Sounds;
 import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,7 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class AuthManager {
-    private static final Logger LOGGER = LoggerFactory.getLogger("yztauth");
+    private static final Logger LOGGER = LoggerFactory.getLogger("yzt_super");
     private static final Base64.Encoder ENC = Base64.getEncoder();
     private static final Base64.Decoder DEC = Base64.getDecoder();
 
@@ -109,9 +110,9 @@ public final class AuthManager {
                 () -> gate.verify(p, password));
         String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         switch (r) {
-            case OK -> audit(name, ip, "GATE_OK");
-            case BAD -> audit(name, ip, "GATE_FAIL");
-            case RATE_LIMITED -> audit(name, ip, "GATE_RATE_LIMITED");
+            case OK -> { audit(name, ip, "GATE_OK"); Sounds.ok(p); }
+            case BAD -> { audit(name, ip, "GATE_FAIL"); Sounds.fail(p); }
+            case RATE_LIMITED -> { audit(name, ip, "GATE_RATE_LIMITED"); Sounds.fail(p); }
             default -> { }
         }
         return r;
@@ -134,13 +135,20 @@ public final class AuthManager {
             return;
         }
         String ip = resolveIp(p);
-        LOGGER.info("[yztauth] {} 进服 ip={} gate={}", p.getGameProfile().getName(), ip, gate.isGateSet());
+        LOGGER.info("[yzt_super] {} 进服 ip={} gate={}", p.getGameProfile().getName(), ip, gate.isGateSet());
         if (gate.isGateSet()) {
             st.gatePassed = false;
             sendGatePrompt(p);
         } else {
             st.gatePassed = true;
             sendLoginPrompt(p);
+        }
+        // 未认证时自动弹铁砧输入框（原版客户端亦可；Esc 关掉后仍可点聊天栏按钮重开）。
+        // 延后一 tick：进服当刻客户端尚未就绪，直接开菜单会被丢弃。
+        if (p.server != null) {
+            p.server.execute(() -> {
+                if (isPending(p)) AuthGui.openFor(p, this);
+            });
         }
         // B4：未登录者从他人 Tab 隐藏，同时自己也看不到别的未登录者
         TabHider.hideFromOthers(p);
@@ -204,17 +212,20 @@ public final class AuthManager {
         String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         if (!limiter.tryAcquire(ip, System.currentTimeMillis())) {
             audit(name, ip, "LOGIN_RATE_LIMITED");
+            Sounds.fail(p);
             return LoginResult.RATE_LIMITED;
         }
         Account a = store.get(name);
         if (a == null) {
             audit(name, ip, "LOGIN_NO_ACCOUNT");
+            Sounds.fail(p);
             return LoginResult.NO_ACCOUNT;
         }
 
         long now = System.currentTimeMillis();
         if (a.lockedUntil > now) {
             audit(name, ip, "LOGIN_LOCKED");
+            Sounds.fail(p);
             return LoginResult.LOCKED;
         }
 
@@ -233,6 +244,7 @@ public final class AuthManager {
             }
             persist();
             audit(name, ip, "LOGIN_FAIL");
+            Sounds.fail(p);
             return LoginResult.BAD;
         }
 
@@ -244,7 +256,7 @@ public final class AuthManager {
             a.salt = ENC.encodeToString(h.salt());
             a.hash = ENC.encodeToString(h.hash());
             a.migratedAt = null;
-            LOGGER.info("[yztauth] {} UPGRADED legacy->pbkdf2", name);
+            LOGGER.info("[yzt_super] {} UPGRADED legacy->pbkdf2", name);
         }
         boolean newIp = ipChanged(a.lastIp, ip); // C1：首次登录（lastIp 为空）不提醒
         a.failedAttempts = 0;
@@ -263,11 +275,11 @@ public final class AuthManager {
     }
 
     public LoginResult register(ServerPlayer p, String password) {
-        if (password.length() < AuthConfig.minPasswordLength()) return LoginResult.BAD;
+        if (password.length() < AuthConfig.minPasswordLength()) { Sounds.fail(p); return LoginResult.BAD; }
         String ip = resolveIp(p);
-        if (!limiter.tryAcquire(ip, System.currentTimeMillis())) return LoginResult.RATE_LIMITED;
+        if (!limiter.tryAcquire(ip, System.currentTimeMillis())) { Sounds.fail(p); return LoginResult.RATE_LIMITED; }
         String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
-        if (store.contains(name)) return LoginResult.NO_ACCOUNT; // 已存在 → 让调用方提示"去登录"
+        if (store.contains(name)) { Sounds.fail(p); return LoginResult.NO_ACCOUNT; } // 已存在 → 让调用方提示"去登录"
 
         PasswordHasher.Hashed h = PasswordHasher.pbkdf2(password.toCharArray(), AuthConfig.pbkdf2Iterations(), 16);
         Account a = new Account();
@@ -308,20 +320,19 @@ public final class AuthManager {
     }
 
     public boolean changePassword(ServerPlayer p, String oldPw, String newPw) {
-        if (newPw.length() < AuthConfig.minPasswordLength()) return false;
+        if (newPw.length() < AuthConfig.minPasswordLength()) { Sounds.fail(p); return false; }
         String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         Account a = store.get(name);
-        if (a == null) return false;
-        boolean ok = PasswordHasher.ALGO_LEGACY.equals(a.algo)
-                ? PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(oldPw.toCharArray()), a.hash)
-                : PasswordHasher.verifyPbkdf2(oldPw.toCharArray(), a.iterations, DEC.decode(a.salt), DEC.decode(a.hash));
-        if (!ok) return false;
+        if (a == null) { Sounds.fail(p); return false; }
+        boolean ok = verifyPassword(a, oldPw);
+        if (!ok) { Sounds.fail(p); return false; }
         PasswordHasher.Hashed h = PasswordHasher.pbkdf2(newPw.toCharArray(), AuthConfig.pbkdf2Iterations(), 16);
         a.algo = PasswordHasher.ALGO_PBKDF2;
         a.iterations = h.iterations();
         a.salt = ENC.encodeToString(h.salt());
         a.hash = ENC.encodeToString(h.hash());
         persist();
+        Sounds.ok(p);
         return true;
     }
 
@@ -335,6 +346,42 @@ public final class AuthManager {
     }
 
     public Account accountOf(String nameLower) { return store.get(nameLower); }
+
+    /** 校验账户密码（PBKDF2 或遗留 SHA-256）。 */
+    private boolean verifyPassword(Account a, String pw) {
+        if (pw == null) return false;
+        return PasswordHasher.ALGO_LEGACY.equals(a.algo)
+                ? PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(pw.toCharArray()), a.hash)
+                : PasswordHasher.verifyPbkdf2(pw.toCharArray(), a.iterations, DEC.decode(a.salt), DEC.decode(a.hash));
+    }
+
+    /** 邮箱操作结果。 */
+    public enum EmailResult { SET, ALREADY_SET, BAD_OLD_EMAIL, BAD_PASSWORD, NO_ACCOUNT }
+
+    /**
+     * 首次绑定邮箱。已经绑过则返回 {@link EmailResult#ALREADY_SET}——邮箱只能设一次，
+     * 再改必须走 {@link #changeEmail}（旧邮箱 + 密码双重验证）。
+     */
+    public EmailResult bindEmail(ServerPlayer p, String addr) {
+        Account a = store.get(p.getGameProfile().getName().toLowerCase(Locale.ROOT));
+        if (a == null) return EmailResult.NO_ACCOUNT;
+        if (a.email != null && !a.email.isBlank()) return EmailResult.ALREADY_SET;
+        a.email = addr.trim();
+        persist();
+        return EmailResult.SET;
+    }
+
+    /** 改绑邮箱：旧邮箱与账户密码两项都对，才把邮箱换成 {@code newAddr}。 */
+    public EmailResult changeEmail(ServerPlayer p, String oldEmail, String oldPw, String newAddr) {
+        Account a = store.get(p.getGameProfile().getName().toLowerCase(Locale.ROOT));
+        if (a == null) return EmailResult.NO_ACCOUNT;
+        if (a.email == null || a.email.isBlank()) return EmailResult.ALREADY_SET; // 未绑定无从验证
+        if (!a.email.equalsIgnoreCase(oldEmail == null ? "" : oldEmail.trim())) return EmailResult.BAD_OLD_EMAIL;
+        if (!verifyPassword(a, oldPw)) return EmailResult.BAD_PASSWORD;
+        a.email = newAddr.trim();
+        persist();
+        return EmailResult.SET;
+    }
     public void persistNow() { persist(); }
 
     /** 用某玩家自己的当前密码做二次验密（危险操作的守卫）。 */
@@ -360,13 +407,12 @@ public final class AuthManager {
         lastActivityPos.remove(p.getUUID());
         LockdownSync.authenticate(p);
         TabHider.reveal(p);
+        com.yztc.auth.title.TitleEvents.refreshDisplay(p);
         WelcomeSync.welcome(p);
-        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
-        MailStore mail = StoreHolder.mail();
-        if (mail != null) {
-            int unread = mail.unreadFor(name);
-            if (unread > 0) p.sendSystemMessage(Lang.msg("mail_unread_notice", String.valueOf(unread)));
-        }
+        Sounds.ok(p);
+        com.yztc.auth.ui.LoginBoard.send(p, p.getGameProfile().getName().toLowerCase(Locale.ROOT));
+        // 管理员登录后：若有未处理的高风险记录，额外提醒（含「查看」按钮）
+        if (Permissions.isAdmin(p)) com.yztc.auth.risk.RiskLog.notifyIfUnhandled(p);
     }
 
     /** 写审计行（受配置开关控制，且仅记 名字/IP/结果词，绝不含明文口令）。 */
@@ -404,7 +450,7 @@ public final class AuthManager {
         try {
             store.save();
         } catch (IOException e) {
-            LOGGER.error("[yztauth] users.json 写入失败，保留旧文件", e);
+            LOGGER.error("[yzt_super] users.json 写入失败，保留旧文件", e);
         }
     }
 

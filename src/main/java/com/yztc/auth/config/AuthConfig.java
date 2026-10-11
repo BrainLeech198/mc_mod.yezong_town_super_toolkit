@@ -35,6 +35,17 @@ public final class AuthConfig {
     public static int afkLogoutSeconds()           { return V.afkLogoutSeconds.get(); }
     public static String welcomeTitleText()        { return V.welcomeTitleText.get(); }
     public static String welcomeSubText()          { return V.welcomeSubText.get(); }
+    public static boolean startupBanner()          { return V.startupBanner.get(); }
+    public static String serverName()              { return V.serverName.get(); }
+    public static String language()                { return V.language.get(); }
+    public static int broadcastCooldownSeconds()    { return V.broadcastCooldownSeconds.get(); }
+    public static boolean broadcastAllowPlayerColors(){ return V.broadcastAllowPlayerColors.get(); }
+    public static String broadcastPrefix()          { return V.broadcastPrefix.get(); }
+    public static boolean broadcastChannelChat()    { return V.broadcastChannelChat.get(); }
+    public static boolean broadcastChannelTitle()   { return V.broadcastChannelTitle.get(); }
+    public static boolean broadcastChannelSubtitle(){ return V.broadcastChannelSubtitle.get(); }
+    public static boolean broadcastChannelActionbar(){ return V.broadcastChannelActionbar.get(); }
+    public static int broadcastMaxLength()          { return V.broadcastMaxLength.get(); }
 
     private static final class Values {
         final ForgeConfigSpec.IntValue minPasswordLength;
@@ -57,6 +68,17 @@ public final class AuthConfig {
         final ForgeConfigSpec.IntValue afkLogoutSeconds;
         final ForgeConfigSpec.ConfigValue<String> welcomeTitleText;
         final ForgeConfigSpec.ConfigValue<String> welcomeSubText;
+        final ForgeConfigSpec.BooleanValue startupBanner;
+        final ForgeConfigSpec.ConfigValue<String> serverName;
+        final ForgeConfigSpec.ConfigValue<String> language;
+        final ForgeConfigSpec.IntValue broadcastCooldownSeconds;
+        final ForgeConfigSpec.BooleanValue broadcastAllowPlayerColors;
+        final ForgeConfigSpec.ConfigValue<String> broadcastPrefix;
+        final ForgeConfigSpec.BooleanValue broadcastChannelChat;
+        final ForgeConfigSpec.BooleanValue broadcastChannelTitle;
+        final ForgeConfigSpec.BooleanValue broadcastChannelSubtitle;
+        final ForgeConfigSpec.BooleanValue broadcastChannelActionbar;
+        final ForgeConfigSpec.IntValue broadcastMaxLength;
 
         Values(ForgeConfigSpec.Builder b) {
             b.comment("yztAuth 服务器配置").push("security");
@@ -86,12 +108,26 @@ public final class AuthConfig {
             b.comment("扩展").push("feature");
             mailMaxPerPlayer   = b.comment("每人私信上限").defineInRange("mailMaxPerPlayer", 20, 1, 1000);
             mailExpireDays     = b.comment("留言超期天数").defineInRange("mailExpireDays", 30, 1, 3650);
-            auditLogEnabled    = b.comment("写审计日志 logs/yztauth-audit.log").define("auditLogEnabled", true);
+            auditLogEnabled    = b.comment("写审计日志 logs/yzt_super-audit.log").define("auditLogEnabled", true);
             notifyAdminOnLogin = b.comment("登录通知在线管理员").define("notifyAdminOnLogin", true);
             afkLogoutEnabled   = b.comment("AFK 自动登出（默认关）").define("afkLogoutEnabled", false);
             afkLogoutSeconds   = b.comment("AFK 判定秒数").defineInRange("afkLogoutSeconds", 600, 30, 86400);
             welcomeTitleText   = b.comment("自定义欢迎标题（空=用语言键）").define("welcomeTitleText", "");
             welcomeSubText     = b.comment("自定义欢迎副标题（空=用语言键，%s=玩家名）").define("welcomeSubText", "");
+            startupBanner      = b.comment("开服时打印启动横幅（控制台 + 首个管理员进服）").define("startupBanner", true);
+            serverName         = b.comment("横幅品牌行显示的服务器名（空=不显示品牌行）").define("serverName", "");
+            language           = b.comment("服务器兜底语言（原版客户端显示用）：zh_cn | en_us").define("language", "zh_cn");
+            b.pop();
+
+            b.comment("大喇叭").push("broadcast");
+            broadcastCooldownSeconds   = b.comment("玩家喊话冷却（秒）").defineInRange("cooldownSeconds", 60, 0, 3600);
+            broadcastAllowPlayerColors = b.comment("是否允许玩家在喊话里使用颜色码").define("allowPlayerColors", false);
+            broadcastPrefix            = b.comment("广播前缀（空=不显示）").define("prefix", "[公告]");
+            broadcastChannelChat       = b.comment("管理员公告：发聊天栏").define("channel.chat", true);
+            broadcastChannelTitle      = b.comment("管理员公告：发屏幕标题").define("channel.title", true);
+            broadcastChannelSubtitle   = b.comment("管理员公告：发屏幕副标题").define("channel.subtitle", false);
+            broadcastChannelActionbar  = b.comment("管理员公告：发 actionbar").define("channel.actionbar", false);
+            broadcastMaxLength         = b.comment("广播内容长度上限（字符）").defineInRange("maxLength", 128, 1, 512);
             b.pop();
         }
     }

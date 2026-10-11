@@ -7,7 +7,9 @@ public final class StoreHolder {
     private static AccountStore instance;
     private static MailStore mail;
     private static LastSeenStore lastSeen;
+    private static RiskStore risk;
     private static AuditLog audit;
+    private static com.yztc.auth.title.TitleStore titles;
 
     private StoreHolder() {}
 
@@ -20,6 +22,12 @@ public final class StoreHolder {
     public static void setLastSeen(LastSeenStore l) { lastSeen = l; }
     public static LastSeenStore lastSeen() { return lastSeen; }
 
+    public static void setRisk(RiskStore r) { risk = r; }
+    public static RiskStore risk() { return risk; }
+
     public static void setAudit(AuditLog a) { audit = a; }
     public static AuditLog audit() { return audit; }
+
+    public static void setTitles(com.yztc.auth.title.TitleStore t) { titles = t; }
+    public static com.yztc.auth.title.TitleStore titles() { return titles; }
 }

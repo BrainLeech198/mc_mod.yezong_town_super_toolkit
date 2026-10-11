@@ -13,7 +13,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.ArrayList;
 import java.util.List;
 
-/** `/yztauth status`：在线人数与未登录名单。 */
+/** `/yzts admin status`：在线人数与未登录名单。 */
 public final class StatusCommand {
     private StatusCommand() {}
 
