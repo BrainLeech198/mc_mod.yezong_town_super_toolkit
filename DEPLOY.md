@@ -15,7 +15,7 @@
 ## 2. 构建
 
 ```bash
-cd /d/File/claude/mc_bluemap/yztauth
+cd /d/File/claude/mc_yzt/yztauth
 export PATH="$HOME/.gradle/wrapper/dists/gradle-8.14.4-bin/*/gradle-8.14.4/bin:$PATH"
 gradle build --no-daemon --console=plain -Dfg.check.certs=false
 ```
