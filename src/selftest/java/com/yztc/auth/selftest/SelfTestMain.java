@@ -661,14 +661,20 @@ public final class SelfTestMain {
         Assert.that(!com.yztc.auth.auth.AuthManager.ipChanged(null, "1.1.1.1"), "首次登录不算变更");
         Assert.that(!com.yztc.auth.auth.AuthManager.ipChanged("1.1.1.1", "1.1.1.1"), "同 IP 不算");
         Assert.that(com.yztc.auth.auth.AuthManager.ipChanged("1.1.1.1", "2.2.2.2"), "换 IP 算变更");
-        // C2：位置或朝向变化都算“活动”，避免站着不动被误判 AFK
-        double[] snap = {10.0, 64.0, -3.0, 90.0f, 0.0f};
-        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(null, 10, 64, -3, 90, 0), "无快照视为有活动（首次）");
-        Assert.that(!com.yztc.auth.auth.AuthManager.viewChanged(snap, 10, 64, -3, 90, 0), "位置朝向全同不算活动");
-        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(snap, 10.5, 64, -3, 90, 0), "位置移动算活动");
-        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(snap, 10, 64, -3, 120, 0), "仅转向也算活动");
-        Assert.that(com.yztc.auth.auth.AuthManager.viewChanged(snap, 10, 64, -3, 90, 15), "仅俯仰也算活动");
-        Assert.that(!com.yztc.auth.auth.AuthManager.viewChanged(snap, 10.005, 64, -3, 90, 0), "微动在阈值内不算");
+        // C2：只有真实操作（转向 / 行走级位移 / 载具操控）算活动；被推动等被动位移不算
+        Assert.that(!com.yztc.auth.auth.AuthManager.walkedTick(0, 0), "不动不算行走");
+        Assert.that(!com.yztc.auth.auth.AuthManager.walkedTick(0.05, 0), "被推动单次冲量不算行走");
+        Assert.that(!com.yztc.auth.auth.AuthManager.walkedTick(0.11, -0.02), "被推动连续推挤稳态不算行走");
+        Assert.that(com.yztc.auth.auth.AuthManager.walkedTick(0.216, 0), "行走位移算行走");
+        Assert.that(com.yztc.auth.auth.AuthManager.walkedTick(-0.2, 0.12), "斜向快移也算行走");
+        Assert.that(!com.yztc.auth.auth.AuthManager.turnedTick(0, 0), "朝向不变不算转向");
+        Assert.that(!com.yztc.auth.auth.AuthManager.turnedTick(0.05f, -0.05f), "微小抖动不算转向");
+        Assert.that(com.yztc.auth.auth.AuthManager.turnedTick(3f, 0), "偏航算转向");
+        Assert.that(com.yztc.auth.auth.AuthManager.turnedTick(0, -12f), "俯仰算转向");
+        Assert.that(!com.yztc.auth.auth.AuthManager.realActivity(false, false, false), "纯被动位移不算操作（被推动）");
+        Assert.that(com.yztc.auth.auth.AuthManager.realActivity(true, false, false), "转向算操作");
+        Assert.that(com.yztc.auth.auth.AuthManager.realActivity(false, true, false), "行走算操作");
+        Assert.that(com.yztc.auth.auth.AuthManager.realActivity(false, false, true), "载具操控算操作");
         // B4：登出后仍保持连接的模式（lock）必须重新从他人 Tab 隐藏
         Assert.that(com.yztc.auth.auth.AuthManager.staysConnectedOnLogout("lock"), "lock 模式保持连接");
         Assert.that(!com.yztc.auth.auth.AuthManager.staysConnectedOnLogout("disconnect"), "disconnect 断开连接");

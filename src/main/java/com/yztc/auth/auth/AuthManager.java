@@ -40,7 +40,7 @@ public final class AuthManager {
     private final GateManager gate;
     private final Set<UUID> authenticated = new HashSet<>();
     private final Map<UUID, Long> lastActivityMs = new HashMap<>();
-    private final Map<UUID, double[]> lastActivityPos = new HashMap<>();
+    private final Map<UUID, double[]> prevTickPose = new HashMap<>();
     private RateLimiter limiter;
     private final LogoutThrottle throttle = new LogoutThrottle();
 
@@ -53,7 +53,7 @@ public final class AuthManager {
         rebuildLimiter();
         authenticated.clear();
         lastActivityMs.clear();
-        lastActivityPos.clear();
+        prevTickPose.clear();
         throttle.clear();
         AfkBroadcast.clearAll();
     }
@@ -86,11 +86,25 @@ public final class AuthManager {
         return lastIp != null && !lastIp.equals(currentIp);
     }
 
-    /** 纯逻辑：以 {x,y,z,yaw,pitch} 快照比较，位置或朝向是否有可见变化（无快照视为有活动）。 */
-    public static boolean viewChanged(double[] last, double x, double y, double z, float yaw, float pitch) {
-        if (last == null) return true;
-        return Math.abs(x - last[0]) > 0.01 || Math.abs(y - last[1]) > 0.01 || Math.abs(z - last[2]) > 0.01
-                || Math.abs(yaw - last[3]) > 1.0 || Math.abs(pitch - last[4]) > 1.0;
+    /** 单 tick 水平位移阈值（方块）：被推动是 0.05 冲量+地面摩擦（稳态≈0.11），行走≈0.216，阈值须卡在两者之间。 */
+    public static final double WALK_TICK_LIMIT = 0.15;
+
+    /** 单 tick 转向阈值（度）：被动位移不改朝向，小阈值即可。 */
+    public static final float TURN_TICK_LIMIT = 0.1f;
+
+    /** 纯逻辑：单 tick 水平位移是否达到行走量级（被推动等被动位移上不了这个量级）。 */
+    public static boolean walkedTick(double dx, double dz) {
+        return Math.hypot(dx, dz) > WALK_TICK_LIMIT;
+    }
+
+    /** 纯逻辑：单 tick 转向是否超过阈值。 */
+    public static boolean turnedTick(float dYaw, float dPitch) {
+        return Math.abs(dYaw) > TURN_TICK_LIMIT || Math.abs(dPitch) > TURN_TICK_LIMIT;
+    }
+
+    /** 纯逻辑：真实操作 = 转向 / 行走级位移 / 载具操控；被推动等被动位移不算「人回来了」。 */
+    public static boolean realActivity(boolean turned, boolean walked, boolean steering) {
+        return turned || walked || steering;
     }
 
     /** 纯逻辑：该登出模式是否保留连接（回到未登录态，需重新从他人 Tab 隐藏）。 */
@@ -169,25 +183,33 @@ public final class AuthManager {
         PendingState.ALL.remove(p.getUUID());
         authenticated.remove(p.getUUID());
         lastActivityMs.remove(p.getUUID());
-        lastActivityPos.remove(p.getUUID());
+        prevTickPose.remove(p.getUUID());
         AfkBroadcast.forget(p.getUUID());
     }
 
-    /** 活动刷新：位置或朝向变化则更新活动时间戳，超时则按配置登出。 */
+    /** 活动刷新：仅真实操作（转向 / 行走级位移 / 载具操控）刷新活动时间；被推动等被动位移不算操作。 */
     public void onAuthenticatedTick(ServerPlayer p) {
         if (!authenticated.contains(p.getUUID())) return;
         long now = System.currentTimeMillis();
         double x = p.getX(), y = p.getY(), z = p.getZ();
         float yaw = p.getYRot(), pitch = p.getXRot();
-        double[] last = lastActivityPos.get(p.getUUID());
-        boolean active = viewChanged(last, x, y, z, yaw, pitch);
-        if (active) {
-            lastActivityPos.put(p.getUUID(), new double[]{x, y, z, yaw, pitch});
+        double[] prev = prevTickPose.get(p.getUUID());
+        boolean acted;
+        if (prev == null) {
+            acted = true;
+        } else {
+            boolean turned = turnedTick(yaw - (float) prev[3], pitch - (float) prev[4]);
+            boolean walked = !p.isPassenger() && walkedTick(x - prev[0], z - prev[2]);
+            boolean steer = p.isPassenger() && (p.xxa != 0f || p.zza != 0f);
+            acted = realActivity(turned, walked, steer);
+        }
+        prevTickPose.put(p.getUUID(), new double[]{x, y, z, yaw, pitch});
+        if (acted) {
             lastActivityMs.put(p.getUUID(), now);
         }
         long lastMs = lastActivityMs.getOrDefault(p.getUUID(), now);
         // 挂机/返回全服公告：独立于 AFK 自动登出（阈值更短，只播报不踢人）
-        AfkBroadcast.tick(p, active, now - lastMs, AuthConfig.afkAnnounceSeconds() * 1000L,
+        AfkBroadcast.tick(p, acted, now - lastMs, AuthConfig.afkAnnounceSeconds() * 1000L,
                 AuthConfig.afkAnnounceEnabled());
         if (afkExpired(lastMs, now, AuthConfig.afkLogoutSeconds() * 1000L, AuthConfig.afkLogoutEnabled())) {
             p.sendSystemMessage(Lang.msg("afk_logout"));
@@ -307,7 +329,7 @@ public final class AuthManager {
     public void logout(ServerPlayer p, String mode) {
         authenticated.remove(p.getUUID());
         lastActivityMs.remove(p.getUUID());
-        lastActivityPos.remove(p.getUUID());
+        prevTickPose.remove(p.getUUID());
         AfkBroadcast.forget(p.getUUID());
         PendingState st = new PendingState(p); // 以当前位置为新原点
         PendingState.ALL.put(p.getUUID(), st);
@@ -412,7 +434,7 @@ public final class AuthManager {
         authenticated.add(p.getUUID());
         PendingState.ALL.remove(p.getUUID());
         lastActivityMs.put(p.getUUID(), System.currentTimeMillis());
-        lastActivityPos.remove(p.getUUID());
+        prevTickPose.remove(p.getUUID());
         AfkBroadcast.forget(p.getUUID()); // 刚刚登录不算「挂机返回」，清掉旧标记
         LockdownSync.authenticate(p);
         TabHider.reveal(p);
