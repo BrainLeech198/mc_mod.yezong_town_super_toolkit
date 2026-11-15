@@ -53,6 +53,7 @@ public final class AnvilInput {
 
     private static void open(ServerPlayer player, Component title, Session session, Component firstPrompt) {
         if (firstPrompt != null) player.sendSystemMessage(firstPrompt);
+        player.sendSystemMessage(Lang.msg("anvil_howto"));
         Sounds.prompt(player);
         player.openMenu(new SimpleMenuProvider(
                 (id, inv, p) -> new CaptureAnvilMenu(id, inv, session, player), title));
@@ -145,7 +146,7 @@ public final class AnvilInput {
             this.session = session;
             this.owner = owner;
             ItemStack paper = new ItemStack(Items.PAPER);
-            paper.setHoverName(Component.literal(""));
+            paper.setHoverName(Lang.msg("anvil_input_hint"));
             getSlot(INPUT_SLOT).set(paper);
             createResult();
         }
@@ -166,7 +167,7 @@ public final class AnvilInput {
         @Override
         public void createResult() {
             ItemStack submit = new ItemStack(Items.LIME_DYE);
-            submit.setHoverName(Lang.msg("anvil_submit"));
+            submit.setHoverName(Lang.msg("anvil_submit_hint"));
             resultSlots.setItem(0, submit);
             setMaximumCost(0);
         }

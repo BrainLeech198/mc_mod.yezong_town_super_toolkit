@@ -34,6 +34,7 @@ public final class Lang {
             Map.entry("email_set", ChatFormatting.GREEN),
             Map.entry("email_changed", ChatFormatting.GREEN),
             Map.entry("confirm_ok", ChatFormatting.GREEN),
+            Map.entry("anvil_submit_hint", ChatFormatting.GREEN),
             Map.entry("mail_sent", ChatFormatting.GREEN),
             Map.entry("mail_posted", ChatFormatting.GREEN),
             Map.entry("mail_del_ok", ChatFormatting.GREEN),
@@ -122,6 +123,8 @@ public final class Lang {
             Map.entry("title_confirm_take", ChatFormatting.GOLD),
             // 引导 / 轻提醒
             Map.entry("gate_not_set", ChatFormatting.YELLOW),
+            Map.entry("anvil_howto", ChatFormatting.YELLOW),
+            Map.entry("anvil_input_hint", ChatFormatting.AQUA),
             Map.entry("gate_required", ChatFormatting.YELLOW),
             Map.entry("logout_choose", ChatFormatting.YELLOW),
             Map.entry("not_registered", ChatFormatting.YELLOW),
