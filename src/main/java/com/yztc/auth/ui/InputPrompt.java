@@ -1,6 +1,7 @@
 package com.yztc.auth.ui;
 
 import com.yztc.auth.lang.Lang;
+import com.yztc.auth.lang.ServerLang;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -45,14 +46,33 @@ public final class InputPrompt {
      */
     public static void choose(ServerPlayer p, Component promptTitle, Component anvilTitle,
                               Consumer<String> onAnvil, String cmdSuggest) {
+        // 输入方式提示在聊天栏显示，先关闭可能仍打开的箱子菜单，避免两种界面同时占屏。
+        p.closeContainer();
         String token = register(() -> AnvilInput.open(p, anvilTitle,
                 UiSession.open(p.getUUID(), onAnvil, () -> {})));
         Component buttons = Component.empty()
                 .append(ChatPrompt.runButton(Lang.msg("btn_anvil"), "/yzts input " + token))
                 .append(Component.literal("   "))
                 .append(ChatPrompt.button(Lang.msg("btn_cmd"), cmdSuggest));
-        for (Component c : ChatBox.box(promptTitle, List.of(buttons))) {
+        for (Component c : ChatBox.box(promptTitle, List.of(buttons), maxLocalizedPromptWidth())) {
             p.sendSystemMessage(c);
         }
+    }
+
+    /** 以项目支持的中英文里较宽的一种计算留白，避免客户端本地化后按钮顶破聊天框。 */
+    private static int maxLocalizedPromptWidth() {
+        return Math.max(promptWidth("zh_cn"), promptWidth("en_us"));
+    }
+
+    private static int promptWidth(String language) {
+        String title = localized(language, "input_choose");
+        String line = "[" + localized(language, "btn_anvil") + "]   ["
+                + localized(language, "btn_cmd") + "]";
+        return ChatBox.innerWidth(title, List.of(line));
+    }
+
+    private static String localized(String language, String key) {
+        String text = ServerLang.templateFor(language, key);
+        return text == null ? key : text;
     }
 }

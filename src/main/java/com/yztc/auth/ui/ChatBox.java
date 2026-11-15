@@ -39,10 +39,15 @@ public final class ChatBox {
 
     /** 聊天组件版：标题 + 内容行 → 已套框的组件列表，可逐条 sendSystemMessage。 */
     public static List<Component> box(Component title, List<Component> lines) {
+        return box(title, lines, 0);
+    }
+
+    /** 组件版并允许调用方为客户端本地化预留最小内容宽度。 */
+    public static List<Component> box(Component title, List<Component> lines, int minimumInnerWidth) {
         String plainTitle = title.getString();
         List<String> plains = new ArrayList<>(lines.size());
         for (Component c : lines) plains.add(c.getString());
-        int w = innerWidth(plainTitle, plains);
+        int w = Math.max(innerWidth(plainTitle, plains), minimumInnerWidth);
         int titleW = TextWidth.displayWidth(plainTitle);
         int fill = Math.max(1, w + 1 - (titleW + 2));
         int topW = 4 + titleW + fill;

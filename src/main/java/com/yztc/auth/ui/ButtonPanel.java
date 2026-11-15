@@ -122,13 +122,12 @@ public final class ButtonPanel {
                 return;
             }
             Sounds.click(viewer);
-            // 动作**必须延后到下一 tick**：动作里常要开新菜单（铁砧/箱子），
-            // 若在本点击处理流程内同步开，会与紧随其后的收尾逻辑撞车导致菜单错位（点了没反应）。
+            // 动作**必须延后到下一 tick**：先关掉当前箱子菜单，再执行后续动作，
+            // 避免聊天提示出现时旧菜单仍挡在屏幕上；若动作打开新菜单，也不会被旧菜单收尾关掉。
             // 用 Defer.nextTick 而非 server.execute —— 后者在主线程上是同步执行的。
-            // 动作跑完若仍停在本面板，再关闭它（动作若已开新菜单则交给它）。
             Defer.nextTick(viewer, () -> {
-                b.action().accept(viewer);
                 if (viewer.containerMenu == this) viewer.closeContainer();
+                b.action().accept(viewer);
             });
         }
 

@@ -14,6 +14,7 @@ public final class LogoutPrompt {
     private LogoutPrompt() {}
 
     public static void send(ServerPlayer p) {
+        p.closeContainer();
         Component buttons = Component.empty()
                 .append(ChatPrompt.runButton(Lang.msg("logout_quit"), "/yzts logout quit"))
                 .append(Component.literal("   "))
