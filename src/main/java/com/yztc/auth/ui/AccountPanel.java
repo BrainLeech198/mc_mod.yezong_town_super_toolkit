@@ -79,16 +79,19 @@ public final class AccountPanel {
 
     /** 先输当前密码，再输新密码，两次都经铁砧捕获后调用 changePassword。 */
     private static void changePassword(ServerPlayer v, AuthManager auth) {
-        AnvilInput.open(v, Lang.msg("account_changepw"),
-                UiSession.open(v.getUUID(),
-                        oldPw -> AnvilInput.open(v, Lang.msg("account_changepw"),
-                                UiSession.open(v.getUUID(),
-                                        newPw -> {
-                                            boolean ok = auth.changePassword(v, oldPw, newPw);
-                                            v.sendSystemMessage(Lang.msg(ok ? "changepw_ok" : "changepw_bad"));
-                                            if (ok) Sounds.ok(v); else Sounds.fail(v);
-                                        },
-                                        () -> { })),
-                        () -> { }));
+        AnvilInput.openFlow(v, Lang.msg("account_changepw"), Lang.msg("changepw_prompt_old"), (player, oldPw) -> {
+            if (!auth.verifyOwnPassword(v, oldPw)) {
+                v.sendSystemMessage(Lang.msg("changepw_bad"));
+                Sounds.fail(v);
+                return AnvilInput.Response.retry(Lang.msg("changepw_prompt_old"));
+            }
+            return AnvilInput.Response.next(Lang.msg("changepw_prompt_new"), (ignoredPlayer, newPw) -> {
+                boolean ok = auth.changePassword(v, oldPw, newPw);
+                v.sendSystemMessage(Lang.msg(ok ? "changepw_ok" : "changepw_bad"));
+                if (ok) Sounds.ok(v); else Sounds.fail(v);
+                return ok ? AnvilInput.Response.close()
+                        : AnvilInput.Response.retry(Lang.msg("changepw_prompt_new"));
+            });
+        }, () -> {});
     }
 }

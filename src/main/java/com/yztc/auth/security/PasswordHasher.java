@@ -8,6 +8,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Locale;
+import java.util.Base64;
 
 public final class PasswordHasher {
     public static final String ALGO_PBKDF2 = "pbkdf2-sha256";
@@ -33,7 +34,26 @@ public final class PasswordHasher {
     }
 
     public static boolean verifyPbkdf2(char[] password, int iterations, byte[] salt, byte[] expected) {
-        return MessageDigest.isEqual(derive(password, salt, iterations), expected);
+        if (password == null || salt == null || expected == null
+                || iterations < 1 || iterations > 2_000_000) return false;
+        try {
+            return MessageDigest.isEqual(derive(password, salt, iterations), expected);
+        } catch (IllegalArgumentException e) {
+            // Corrupt persisted parameters must fail closed rather than escape into a server command/tick.
+            return false;
+        }
+    }
+
+    /** Verify a persisted PBKDF2 record. Invalid Base64 or missing fields are rejected without throwing. */
+    public static boolean verifyPbkdf2Encoded(char[] password, Integer iterations,
+                                               String salt, String expected) {
+        if (password == null || iterations == null || salt == null || expected == null) return false;
+        try {
+            Base64.Decoder decoder = Base64.getDecoder();
+            return verifyPbkdf2(password, iterations, decoder.decode(salt), decoder.decode(expected));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private static byte[] derive(char[] password, byte[] salt, int iterations) {

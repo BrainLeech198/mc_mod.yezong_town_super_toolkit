@@ -1,6 +1,7 @@
 package com.yztc.auth.auth;
 
 import com.yztc.auth.audit.AuditLog;
+import com.yztc.auth.api.ClientIpResolveEvent;
 import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.broadcast.AfkBroadcast;
 import com.yztc.auth.data.Account;
@@ -16,10 +17,13 @@ import com.yztc.auth.ui.Sounds;
 import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.common.MinecraftForge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,7 +35,6 @@ import java.util.UUID;
 public final class AuthManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("yzt_super");
     private static final Base64.Encoder ENC = Base64.getEncoder();
-    private static final Base64.Decoder DEC = Base64.getDecoder();
 
     /** 未登录提示标题的重发间隔（毫秒），配合短动画形成持续闪烁。 */
     public static final long TITLE_FLASH_INTERVAL_MS = 1500L;
@@ -261,8 +264,10 @@ public final class AuthManager {
         boolean ok;
         if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
             ok = PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(password.toCharArray()), a.hash);
+        } else if (PasswordHasher.ALGO_PBKDF2.equals(a.algo)) {
+            ok = PasswordHasher.verifyPbkdf2Encoded(password.toCharArray(), a.iterations, a.salt, a.hash);
         } else {
-            ok = PasswordHasher.verifyPbkdf2(password.toCharArray(), a.iterations, DEC.decode(a.salt), DEC.decode(a.hash));
+            ok = false;
         }
 
         if (!ok) {
@@ -380,9 +385,11 @@ public final class AuthManager {
     /** 校验账户密码（PBKDF2 或遗留 SHA-256）。 */
     private boolean verifyPassword(Account a, String pw) {
         if (pw == null) return false;
-        return PasswordHasher.ALGO_LEGACY.equals(a.algo)
-                ? PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(pw.toCharArray()), a.hash)
-                : PasswordHasher.verifyPbkdf2(pw.toCharArray(), a.iterations, DEC.decode(a.salt), DEC.decode(a.hash));
+        if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
+            return PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(pw.toCharArray()), a.hash);
+        }
+        return PasswordHasher.ALGO_PBKDF2.equals(a.algo)
+                && PasswordHasher.verifyPbkdf2Encoded(pw.toCharArray(), a.iterations, a.salt, a.hash);
     }
 
     /** 邮箱操作结果。 */
@@ -426,8 +433,8 @@ public final class AuthManager {
         if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
             return PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(password.toCharArray()), a.hash);
         }
-        return PasswordHasher.verifyPbkdf2(password.toCharArray(), a.iterations,
-                DEC.decode(a.salt), DEC.decode(a.hash));
+        return PasswordHasher.ALGO_PBKDF2.equals(a.algo)
+                && PasswordHasher.verifyPbkdf2Encoded(password.toCharArray(), a.iterations, a.salt, a.hash);
     }
 
     private void completeAuth(ServerPlayer p) {
@@ -467,14 +474,22 @@ public final class AuthManager {
 
     public String resolveIp(ServerPlayer p) {
         String mode = AuthConfig.ipResolution();
-        String remote = p.connection.getRemoteAddress() == null
-                ? "unknown" : p.connection.getRemoteAddress().toString();
+        SocketAddress remoteAddress = p.connection.getRemoteAddress();
+        String remote = "unknown";
+        if (remoteAddress instanceof InetSocketAddress inet) {
+            // SocketAddress.toString() includes the client's ephemeral source port;
+            // using it as the rate-limit key would give every reconnect a new bucket.
+            String host = inet.getAddress() == null ? inet.getHostString() : inet.getAddress().getHostAddress();
+            if (host != null && !host.isBlank()) remote = host;
+        } else if (remoteAddress != null) {
+            remote = remoteAddress.toString();
+        }
         if ("remote".equalsIgnoreCase(mode)) return remote;
-        // auto / header：尝试代理头
-        String header = AuthConfig.forwardedHeaderName();
-        String fromHeader = HeaderProbe.firstValue(p, header);
-        if (fromHeader != null && !fromHeader.isBlank()) return fromHeader.trim();
-        return remote;
+        // auto is the safe default. "header" remains an alias for older configs, but
+        // address forwarding comes from a trusted Forge integration, not an HTTP header.
+        ClientIpResolveEvent event = new ClientIpResolveEvent(p);
+        MinecraftForge.EVENT_BUS.post(event);
+        return event.getClientAddress() == null ? remote : event.getClientAddress().getHostAddress();
     }
 
     private void persist() {

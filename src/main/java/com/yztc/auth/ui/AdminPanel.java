@@ -165,14 +165,24 @@ public final class AdminPanel {
             switch (slotId) {
                 case 0 -> Defer.nextTick(viewer, () -> confirm(Lang.msg("admin_confirm_view_mail", disp),
                         () -> src.sendSuccess(() -> Lang.msg("admin_mail_is", emailOf(key)), false)));
-                case 1 -> Defer.nextTick(viewer, () -> confirm(Lang.msg("admin_confirm_reset_pw", disp),
-                        () -> AnvilInput.open(viewer, Lang.msg("admin_new_password_title"),
-                                UiSession.open(viewer.getUUID(),
-                                        pw -> {
-                                            AdminCommands.setOtherPassword(src, auth, disp, pw);
-                                            viewer.sendSystemMessage(Lang.msg("changepw_ok"));
-                                        },
-                                        () -> viewer.sendSystemMessage(Lang.msg("confirm_bad"))))));
+                case 1 -> Defer.nextTick(viewer, () -> {
+                    viewer.sendSystemMessage(Lang.msg("admin_confirm_reset_pw", disp));
+                    AnvilInput.openFlow(viewer, Lang.msg("confirm_prompt"), Lang.msg("confirm_prompt"), (player, pw) -> {
+                        boolean ok = auth.verifyOwnPassword(viewer, pw)
+                                || Permissions.has(viewer, Permissions.BYPASS_CONFIRM, 5);
+                        if (!ok) {
+                            viewer.sendSystemMessage(Lang.msg("confirm_bad"));
+                            Sounds.fail(viewer);
+                            return AnvilInput.Response.retry(Lang.msg("confirm_prompt"));
+                        }
+                        viewer.sendSystemMessage(Lang.msg("confirm_ok"));
+                        return AnvilInput.Response.next(Lang.msg("admin_new_password_title"), (ignoredPlayer, newPw) -> {
+                            int result = AdminCommands.setOtherPassword(src, auth, disp, newPw);
+                            if (result > 0) return AnvilInput.Response.close();
+                            return AnvilInput.Response.retry(Lang.msg("admin_new_password_title"));
+                        });
+                    }, () -> viewer.sendSystemMessage(Lang.msg("confirm_bad")));
+                });
                 case 2 -> Defer.nextTick(viewer, () -> requireOnline(key, disp, () -> confirm(Lang.msg("admin_confirm_force_login", disp),
                         () -> AdminCommands.forceLogin(src, auth, disp))));
                 case 3 -> Defer.nextTick(viewer, () -> requireOnline(key, disp, () -> confirm(Lang.msg("admin_confirm_force_logout", disp),

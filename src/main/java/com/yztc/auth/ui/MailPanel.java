@@ -60,8 +60,21 @@ public final class MailPanel {
 
     /** 「手输名字」：先输收件人名，再输正文。 */
     private static void composeManual(ServerPlayer v) {
-        AnvilInput.open(v, Lang.msg("mail_compose_manual_title"),
-                UiSession.open(v.getUUID(), to -> composeTo(v, to), () -> { }));
+        AnvilInput.openFlow(v, Lang.msg("mail_compose_manual_title"), Lang.msg("mail_compose_manual_title"), (player, to) -> {
+            String from = v.getGameProfile().getName().toLowerCase(Locale.ROOT);
+            if (!MailCommand.validRecipient(to, from, StoreHolder.get().names())) {
+                v.sendSystemMessage(Lang.msg("mail_no_recipient"));
+                return AnvilInput.Response.retry(Lang.msg("mail_compose_manual_title"));
+            }
+            return AnvilInput.Response.next(Lang.msg("mail_compose_to", to), (ignoredPlayer, text) -> {
+                int sent = MailCommand.deliver(v, to, text);
+                if (sent > 0) return AnvilInput.Response.close();
+                if (text == null || text.isBlank()) {
+                    return AnvilInput.Response.retry(Lang.msg("mail_compose_to", to));
+                }
+                return AnvilInput.Response.close();
+            });
+        }, () -> {});
     }
 
     /** 写信选人菜单：全部已注册玩家分页 + 顶行「手输名字」。 */

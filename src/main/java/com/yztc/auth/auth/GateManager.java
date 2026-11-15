@@ -7,11 +7,9 @@ import com.yztc.auth.security.PasswordHasher;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.io.IOException;
-import java.util.Base64;
 
 public final class GateManager {
-    private static final Base64.Encoder ENC = Base64.getEncoder();
-    private static final Base64.Decoder DEC = Base64.getDecoder();
+    private static final java.util.Base64.Encoder ENC = java.util.Base64.getEncoder();
 
     private final AccountStore store;
 
@@ -43,10 +41,12 @@ public final class GateManager {
         if (g == null) return GateResult.NOT_SET;
         boolean ok;
         if (PasswordHasher.ALGO_PBKDF2.equals(g.algo)) {
-            ok = PasswordHasher.verifyPbkdf2(
-                    password.toCharArray(), g.iterations, DEC.decode(g.salt), DEC.decode(g.hash));
-        } else {
+            ok = PasswordHasher.verifyPbkdf2Encoded(
+                    password.toCharArray(), g.iterations, g.salt, g.hash);
+        } else if (PasswordHasher.ALGO_LEGACY.equals(g.algo)) {
             ok = PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(password.toCharArray()), g.hash);
+        } else {
+            ok = false;
         }
         if (ok && PendingState.ALL.containsKey(player.getUUID())) {
             PendingState.ALL.get(player.getUUID()).gatePassed = true;

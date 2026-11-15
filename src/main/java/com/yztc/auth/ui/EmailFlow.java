@@ -16,8 +16,8 @@ public final class EmailFlow {
 
     /** 账户面板入口：先让玩家在铁砧里输入（新）邮箱地址，再交给 {@link #apply}。 */
     public static void promptAddress(ServerPlayer p, AuthManager auth) {
-        AnvilInput.open(p, Lang.msg("account_email"),
-                UiSession.open(p.getUUID(), addr -> apply(p, auth, addr), () -> {}));
+        AnvilInput.openFlow(p, Lang.msg("account_email"), Lang.msg("email_prompt_new"),
+                (player, addr) -> addressStep(p, auth, addr), () -> {});
     }
 
     /** 绑定或改绑：地址格式不合法直接拒绝；否则按「是否已绑定」分流到直连绑定或验证链。 */
@@ -43,28 +43,64 @@ public final class EmailFlow {
 
     /** 改绑验证链：铁砧① 旧邮箱 → 铁砧② 账户密码 → 一致才把邮箱改成 {@code newAddr}。 */
     private static void change(ServerPlayer p, AuthManager auth, String newAddr) {
-        AnvilInput.open(p, Lang.msg("email_prompt_old"), UiSession.open(p.getUUID(),
-                oldEmail -> AnvilInput.open(p, Lang.msg("email_prompt_pw"), UiSession.open(p.getUUID(),
-                        oldPw -> {
-                            switch (auth.changeEmail(p, oldEmail, oldPw, newAddr)) {
-                                case SET -> {
-                                    p.sendSystemMessage(Lang.msg("email_changed"));
-                                    Sounds.ok(p);
-                                }
-                                case BAD_OLD_EMAIL -> {
-                                    p.sendSystemMessage(Lang.msg("email_bad_old"));
-                                    Sounds.fail(p);
-                                }
-                                case BAD_PASSWORD -> {
-                                    p.sendSystemMessage(Lang.msg("email_bad_pw"));
-                                    Sounds.fail(p);
-                                }
-                                default -> {
-                                    p.sendSystemMessage(Lang.msg("email_change_fail"));
-                                    Sounds.fail(p);
-                                }
-                            }
-                        }, () -> {})),
-                () -> {}));
+        AnvilInput.openFlow(p, Lang.msg("account_email"), Lang.msg("email_prompt_old"),
+                (player, oldEmail) -> oldEmailStep(p, auth, newAddr, oldEmail), () -> {});
+    }
+
+    private static AnvilInput.Response addressStep(ServerPlayer p, AuthManager auth, String addr) {
+        String normalized = addr == null ? "" : addr.trim();
+        if (!Emails.looksValid(normalized)) {
+            p.sendSystemMessage(Lang.msg("email_bad"));
+            Sounds.fail(p);
+            return AnvilInput.Response.retry(Lang.msg("email_prompt_new"));
+        }
+        return switch (auth.bindEmail(p, normalized)) {
+            case SET -> {
+                p.sendSystemMessage(Lang.msg("email_set"));
+                Sounds.ok(p);
+                yield AnvilInput.Response.close();
+            }
+            case NO_ACCOUNT -> {
+                p.sendSystemMessage(Lang.msg("not_registered"));
+                Sounds.fail(p);
+                yield AnvilInput.Response.close();
+            }
+            case ALREADY_SET -> AnvilInput.Response.next(Lang.msg("email_prompt_old"),
+                    (player, oldEmail) -> oldEmailStep(p, auth, normalized, oldEmail));
+            default -> {
+                p.sendSystemMessage(Lang.msg("email_change_fail"));
+                Sounds.fail(p);
+                yield AnvilInput.Response.retry(Lang.msg("email_prompt_new"));
+            }
+        };
+    }
+
+    private static AnvilInput.Response oldEmailStep(ServerPlayer p, AuthManager auth, String newAddr, String oldEmail) {
+        return AnvilInput.Response.next(Lang.msg("email_prompt_pw"), (player, oldPw) -> {
+            AuthManager.EmailResult result = auth.changeEmail(p, oldEmail, oldPw, newAddr);
+            switch (result) {
+                case SET -> {
+                    p.sendSystemMessage(Lang.msg("email_changed"));
+                    Sounds.ok(p);
+                    return AnvilInput.Response.close();
+                }
+                case BAD_OLD_EMAIL -> {
+                    p.sendSystemMessage(Lang.msg("email_bad_old"));
+                    Sounds.fail(p);
+                    return AnvilInput.Response.next(Lang.msg("email_prompt_old"),
+                            (ignoredPlayer, retryOld) -> oldEmailStep(p, auth, newAddr, retryOld));
+                }
+                case BAD_PASSWORD -> {
+                    p.sendSystemMessage(Lang.msg("email_bad_pw"));
+                    Sounds.fail(p);
+                    return AnvilInput.Response.retry(Lang.msg("email_prompt_pw"));
+                }
+                default -> {
+                    p.sendSystemMessage(Lang.msg("email_change_fail"));
+                    Sounds.fail(p);
+                    return AnvilInput.Response.close();
+                }
+            }
+        });
     }
 }

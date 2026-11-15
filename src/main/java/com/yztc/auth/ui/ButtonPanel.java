@@ -65,20 +65,6 @@ public final class ButtonPanel {
         viewer.openMenu(new SimpleMenuProvider(
                 (id, inv, p) -> new Menu(id, inv, viewer, use, rows),
                 title));
-        // TEMP-DEBUG: 记录实际开出来的菜单 id/槽数，和点击日志对照。根因确认后删掉。
-        viewer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                "[yzt-dbg] open rows=" + rows
-                        + " cid=" + viewer.containerMenu.containerId
-                        + " menu=" + viewer.containerMenu.getClass().getSimpleName()));
-        // 2 秒后回报菜单是否还在——若被换成背包，说明有东西悄悄关掉了我们的菜单。
-        var opened = viewer.containerMenu;
-        viewer.server.tell(new net.minecraft.server.TickTask(viewer.server.getTickCount() + 40, () -> {
-            if (!viewer.isAlive() || viewer.hasDisconnected()) return;
-            viewer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                    "[yzt-dbg] t+40 menu=" + viewer.containerMenu.getClass().getSimpleName()
-                            + " cid=" + viewer.containerMenu.containerId
-                            + " same=" + (viewer.containerMenu == opened)));
-        }));
     }
 
     private static ItemStack named(Item item, Component label) {
@@ -131,14 +117,6 @@ public final class ButtonPanel {
         @Override
         public void clicked(int slotId, int button, ClickType type, Player p) {
             Btn b = bySlot.get(slotId);
-            // TEMP-DEBUG: 诊断「GUI 点击无反应」——一次点击就能分辨包进没进、槽位是否命中。
-            // 根因确认后删掉。
-            viewer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                    "[yzt-dbg] click slot=" + slotId + " type=" + type
-                            + " hit=" + (b != null)
-                            + " act=" + (b != null && b.action() != null)
-                            + " keys=" + bySlot.keySet()
-                            + " cid=" + containerId));
             if (b == null || b.action() == null) { // 空槽或只读项：不取物、不关闭
                 sendAllDataToRemote();
                 return;
@@ -157,35 +135,6 @@ public final class ButtonPanel {
         @Override
         public ItemStack quickMoveStack(Player p, int index) {
             return ItemStack.EMPTY;
-        }
-
-        // TEMP-DEBUG: 以下三个探针用于定位「点击包没进 clicked」。
-        // isValidSlotIndex 仅 handleContainerClick 会调（过了 containerId/stillValid 两关之后），
-        // 它都不响 = 点击包根本没走到槽位检查。根因确认后删掉。
-
-        @Override
-        public boolean isValidSlotIndex(int slotId) {
-            boolean ok = super.isValidSlotIndex(slotId);
-            viewer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                    "[yzt-dbg] isValidSlot " + slotId + " -> " + ok + " slots=" + slots.size()));
-            return ok;
-        }
-
-        @Override
-        public boolean stillValid(Player p) {
-            boolean ok = super.stillValid(p);
-            if (!ok) {
-                viewer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                        "[yzt-dbg] stillValid=false cid=" + containerId));
-            }
-            return ok;
-        }
-
-        @Override
-        public void removed(Player p) {
-            viewer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                    "[yzt-dbg] removed cid=" + containerId));
-            super.removed(p);
         }
     }
 }

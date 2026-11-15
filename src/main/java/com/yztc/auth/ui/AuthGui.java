@@ -7,7 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.Locale;
 
 /**
- * 认证用铁砧输入框：进服/过闸后自动弹出，点左侧占位纸后在名字框输入，**输完按 Esc 即提交**；关掉后仍可点聊天栏按钮重开。
+ * 认证用铁砧输入框：进服/过闸后自动弹出，点左侧占位纸后在名字框输入，点右侧结果槽提交；Esc 取消。
  *
  * <p>提交时不复制任何认证逻辑——直接把输入当命令参数执行（{@code /yzts gate|login|register <密码>}），
  * 因此闸门校验、失败计数、审计、封锁放行等既有规则原样生效。

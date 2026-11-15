@@ -96,8 +96,8 @@ public final class AuthConfig {
             ipRateLimitCount         = b.comment("IP 限流：窗口内允许次数").defineInRange("ipRateLimit.count", 12, 1, 1000);
             ipRateLimitWindowSeconds = b.comment("IP 限流：窗口长度（秒）").defineInRange("ipRateLimit.windowSeconds", 60, 1, 86400);
             loginTimeoutSeconds      = b.comment("登录超时踢出（秒）").defineInRange("loginTimeoutSeconds", 450, 10, 86400);
-            ipResolution             = b.comment("真实 IP 取法：auto | header | remote").define("ipResolution", "auto");
-            forwardedHeaderName      = b.comment("代理头名（ipResolution=header/auto 时用）").define("forwardedHeaderName", "X-Forwarded-For");
+            ipResolution             = b.comment("客户端地址：auto（可信 Forge 适配器优先，否则连接地址）| remote（强制连接地址）；header 为兼容别名").define("ipResolution", "auto");
+            forwardedHeaderName      = b.comment("旧配置兼容项；Minecraft 连接不是 HTTP，不读取此转发头").define("forwardedHeaderName", "X-Forwarded-For");
             b.pop();
 
             b.comment("登出").push("logout");
