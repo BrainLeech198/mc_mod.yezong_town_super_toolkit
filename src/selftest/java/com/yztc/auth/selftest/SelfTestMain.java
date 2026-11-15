@@ -274,30 +274,24 @@ public final class SelfTestMain {
         Assert.eq(gateSub.getStyle().getColor().getValue(), yellow, "闸门副标题为黄色");
 
         var loginBtn = com.yztc.auth.ui.WelcomeSync.button(false, true);
-        Assert.that(loginBtn.getString().contains("需要登录"), "登录按钮前缀含“需要登录”");
-        Assert.that(loginBtn.getString().contains("【GUI界面】"), "登录按钮含【GUI界面】片段");
-        Assert.that(loginBtn.getString().contains("【指令操作】"), "登录按钮含【指令操作】片段");
+        Assert.that(loginBtn.getString().contains("需要登录"), "登录提示说明需要登录");
+        Assert.that(loginBtn.getString().contains("【重新输入】"), "登录提示只有一个重新输入按钮");
+        Assert.eq(loginBtn.getSiblings().size(), 1, "登录提示仅一个可点入口");
         var guiSeg = loginBtn.getSiblings().get(0);
         Assert.eq(guiSeg.getStyle().getClickEvent().getAction(),
                 net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                "【GUI界面】片段点击即执行（弹铁砧框）");
+                "重新输入按钮点击即打开铁砧框");
         Assert.eq(guiSeg.getStyle().getClickEvent().getValue(), "/yzts login",
-                "【GUI界面】片段命令正确（无参数=开 GUI）");
-        var cmdSeg = loginBtn.getSiblings().get(2);
-        Assert.eq(cmdSeg.getStyle().getClickEvent().getAction(),
-                net.minecraft.network.chat.ClickEvent.Action.SUGGEST_COMMAND,
-                "【指令操作】片段为 suggest_command（填入命令）");
-        Assert.eq(cmdSeg.getStyle().getClickEvent().getValue(), "/yzts login ",
-                "【指令操作】片段命令正确（待补密码）");
+                "登录重开命令正确");
 
         var regBtn = com.yztc.auth.ui.WelcomeSync.button(false, false);
-        Assert.that(regBtn.getString().contains("需要注册"), "注册按钮前缀含“需要注册”");
+        Assert.that(regBtn.getString().contains("第一次来"), "注册提示说明首次进入");
         Assert.eq(regBtn.getSiblings().get(0).getStyle().getClickEvent().getValue(), "/yzts register",
-                "注册【GUI界面】命令正确");
+                "注册重开命令正确");
         var gateBtn = com.yztc.auth.ui.WelcomeSync.button(true, false);
-        Assert.that(gateBtn.getString().contains("需要全服密码"), "闸门按钮前缀含“需要全服密码”");
+        Assert.that(gateBtn.getString().contains("需要服务器通行密码"), "闸门提示说明需要服务器通行密码");
         Assert.eq(gateBtn.getSiblings().get(0).getStyle().getClickEvent().getValue(), "/yzts gate",
-                "闸门【GUI界面】命令正确");
+                "闸门重开命令正确");
 
         // 修复点：聊天栏按钮文本必须与副标题不同（此前副标题被错当聊天栏内容）
         Assert.that(!loginBtn.getString().equals(loginSub.getString()),

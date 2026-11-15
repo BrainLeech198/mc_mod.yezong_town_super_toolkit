@@ -28,7 +28,7 @@ public final class RootCommand {
         root.then(Commands.literal("gate")
                 .executes(ctx -> runPlayer(ctx.getSource(), p -> {
                     if (!gate.isGateSet()) { p.sendSystemMessage(Lang.msg("gate_not_set")); return 1; }
-                    AuthGui.openGate(p);
+                    AuthGui.openGate(p, auth);
                     return 1;
                 }))
                 .then(Commands.argument("password", StringArgumentType.greedyString())
@@ -137,13 +137,22 @@ public final class RootCommand {
 
     /** 闸门验密：成功即提示并自动接上登录/注册铁砧框。命令与铁砧提交共用此逻辑。 */
     public static int doGate(ServerPlayer p, AuthManager auth, String pw) {
-        switch (auth.gateAttempt(p, pw)) {
+        GateManager.GateResult result = attemptGate(p, auth, pw);
+        if (result == GateManager.GateResult.OK) {
+            WelcomeSync.promptLogin(p, auth);
+            AuthGui.openLoginOrRegister(p, auth);
+        }
+        return 1;
+    }
+
+    /** 执行闸门校验并提示结果；GUI 调用方据此决定保留或切换输入窗口。 */
+    public static GateManager.GateResult attemptGate(ServerPlayer p, AuthManager auth, String pw) {
+        GateManager.GateResult result = auth.gateAttempt(p, pw);
+        switch (result) {
             case NOT_SET -> p.sendSystemMessage(Lang.msg("gate_not_set"));
             case OK -> {
                 p.sendSystemMessage(Lang.msg("gate_ok"));
                 com.yztc.auth.ui.Sounds.ok(p);
-                WelcomeSync.promptLogin(p, auth);
-                AuthGui.openLoginOrRegister(p, auth);
             }
             case BAD -> {
                 p.sendSystemMessage(Lang.msg("gate_bad"));
@@ -154,7 +163,7 @@ public final class RootCommand {
                 com.yztc.auth.ui.Sounds.fail(p);
             }
         }
-        return 1;
+        return result;
     }
 
     public static int doLogin(ServerPlayer p, AuthManager auth, String pw) {

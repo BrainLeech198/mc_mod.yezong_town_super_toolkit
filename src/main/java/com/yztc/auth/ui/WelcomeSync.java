@@ -31,10 +31,18 @@ public final class WelcomeSync {
         return Lang.msg(gate ? "prompt_gate.anvil" : "prompt_login.anvil");
     }
 
+    /** 输入框标题直接说明当前目标：过闸、老玩家登录或新玩家设置密码。 */
+    public static Component anvilTitle(boolean gate, boolean registered) {
+        if (gate) return Lang.msg("prompt_gate.anvil");
+        return Lang.msg(registered ? "prompt_login.anvil" : "prompt_register.anvil");
+    }
+
     /** 副标题（登录/注册路径）：黄色。registered=true 引导登录，否则引导注册。 */
     public static MutableComponent sub(boolean registered) {
-        return Lang.msg(registered ? "prompt_login.sub" : "prompt_register.sub")
-                .copy().withStyle(ChatFormatting.YELLOW);
+        Component prompt = registered
+                ? Lang.msg("prompt_login.sub")
+                : Lang.msg("prompt_register.sub", AuthConfig.minPasswordLength());
+        return prompt.copy().withStyle(ChatFormatting.YELLOW);
     }
 
     /** 副标题（闸门路径）：黄色。 */
@@ -55,15 +63,12 @@ public final class WelcomeSync {
     }
 
     /**
-     * 聊天栏提示：黄色前缀 + 两个绿色可点片段。
-     * 【GUI界面】run_command 直接弹铁砧框；【指令操作】suggest_command 把命令填进输入框，由玩家补密码后回车。
+     * 聊天栏提示：黄色状态文字 + 一个绿色重开按钮。高级玩家仍可直接使用命令。
      */
     public static Component button(boolean gate, boolean registered) {
         String cmd = commandFor(gate, registered);
         MutableComponent line = Lang.msg(buttonKey(gate, registered)).copy().withStyle(ChatFormatting.YELLOW);
         line.append(ChatPrompt.runButton(Lang.msg("btn_gui"), cmd));
-        line.append(Component.literal("  ").withStyle(ChatFormatting.DARK_GRAY));
-        line.append(ChatPrompt.button(Lang.msg("btn_cmd"), cmd + " "));
         return line;
     }
 
