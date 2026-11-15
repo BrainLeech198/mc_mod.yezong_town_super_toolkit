@@ -13,6 +13,7 @@ import com.yztc.auth.perm.Permissions;
 import com.yztc.auth.security.PasswordHasher;
 import com.yztc.auth.ui.TabHider;
 import com.yztc.auth.ui.AuthGui;
+import com.yztc.auth.ui.Defer;
 import com.yztc.auth.ui.Sounds;
 import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.server.MinecraftServer;
@@ -163,12 +164,10 @@ public final class AuthManager {
             sendLoginPrompt(p);
         }
         // 未认证时自动弹铁砧输入框（原版客户端亦可；Esc 关掉后仍可点聊天栏按钮重开）。
-        // 延后一 tick：进服当刻客户端尚未就绪，直接开菜单会被丢弃。
-        if (p.server != null) {
-            p.server.execute(() -> {
-                if (isPending(p)) AuthGui.openFor(p, this);
-            });
-        }
+        // execute 在服务端主线程可能同步执行；明确排到下一 tick，等客户端完成进服界面初始化。
+        Defer.nextTick(p, () -> {
+            if (isPending(p)) AuthGui.openFor(p, this);
+        });
         // B4：未登录者从他人 Tab 隐藏，同时自己也看不到别的未登录者
         TabHider.hideFromOthers(p);
         TabHider.hidePendingFrom(p);
