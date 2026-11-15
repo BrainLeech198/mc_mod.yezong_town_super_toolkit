@@ -6,6 +6,8 @@ import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.broadcast.AfkBroadcast;
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.AccountStore;
+import com.yztc.auth.data.LastSeen;
+import com.yztc.auth.data.LastSeenStore;
 import com.yztc.auth.data.StoreHolder;
 import com.yztc.auth.lang.Lang;
 import com.yztc.auth.lockdown.LockdownSync;
@@ -18,6 +20,7 @@ import com.yztc.auth.ui.Sounds;
 import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
 import net.minecraftforge.common.MinecraftForge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -443,6 +446,7 @@ public final class AuthManager {
         prevTickPose.remove(p.getUUID());
         AfkBroadcast.forget(p.getUUID()); // 刚刚登录不算「挂机返回」，清掉旧标记
         LockdownSync.authenticate(p);
+        restoreLastGameMode(p);
         TabHider.reveal(p);
         com.yztc.auth.title.TitleEvents.refreshDisplay(p);
         WelcomeSync.welcome(p);
@@ -450,6 +454,24 @@ public final class AuthManager {
         com.yztc.auth.ui.LoginBoard.send(p, p.getGameProfile().getName().toLowerCase(Locale.ROOT));
         // 管理员登录后：若有未处理的高风险记录，额外提醒（含「查看」按钮）
         if (Permissions.isAdmin(p)) com.yztc.auth.risk.RiskLog.notifyIfUnhandled(p);
+    }
+
+    /** 只在认证成功后恢复上次模式；旧位置记录没有模式字段时维持当前服务器模式。 */
+    private static void restoreLastGameMode(ServerPlayer p) {
+        if (!AuthConfig.restoreLastGameMode()) return;
+        LastSeenStore lastSeenStore = StoreHolder.lastSeen();
+        String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
+        LastSeen lastSeen = lastSeenStore == null ? null : lastSeenStore.get(name);
+        if (lastSeen == null || lastSeen.gameMode == null) return;
+
+        GameType mode = switch (lastSeen.gameMode.toLowerCase(Locale.ROOT)) {
+            case "survival" -> GameType.SURVIVAL;
+            case "creative" -> GameType.CREATIVE;
+            case "adventure" -> GameType.ADVENTURE;
+            case "spectator" -> GameType.SPECTATOR;
+            default -> null;
+        };
+        if (mode != null) p.setGameMode(mode);
     }
 
     /** 写审计行（受配置开关控制，且仅记 名字/IP/结果词，绝不含明文口令）。 */

@@ -17,7 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** 下线位置库（config/yzt_super/lastseen.json）：一人一条，覆盖式更新。 */
+/** 下线快照库（config/yzt_super/lastseen.json）：每人保存最近位置与游戏模式。 */
 public final class LastSeenStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
@@ -49,7 +49,7 @@ public final class LastSeenStore {
 
     public void save() throws IOException {
         JsonObject root = new JsonObject();
-        root.addProperty("version", 1);
+        root.addProperty("version", 2);
         JsonObject arr = new JsonObject();
         for (Map.Entry<String, LastSeen> e : players.entrySet()) arr.add(e.getKey(), GSON.toJsonTree(e.getValue()));
         root.add("players", arr);

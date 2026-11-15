@@ -1,6 +1,6 @@
 # yzt_super（野粽乡·超级工具箱）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。目标 mod id：`yzt_super`，显示名（PCL2 等从 `mods.toml` 读到、对外展示的就是它）：**野粽乡·超级工具箱**，当前产物：`build/libs/yzt_super-1.1.5.jar`。
+用于把在用的 SAuth-2.0.0 换成本 mod。目标 mod id：`yzt_super`，显示名（PCL2 等从 `mods.toml` 读到、对外展示的就是它）：**野粽乡·超级工具箱**，当前产物：`build/libs/yzt_super-1.2.0.jar`。
 
 ## 1. 迁移前备份
 
@@ -20,7 +20,7 @@ export PATH="$HOME/.gradle/wrapper/dists/gradle-8.14.4-bin/*/gradle-8.14.4/bin:$
 gradle build --no-daemon --console=plain -Dfg.check.certs=false
 ```
 
-产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.1.5.jar`。纯逻辑自测：
+产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.2.0.jar`。纯逻辑自测：
 
 ```bash
 gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
@@ -151,7 +151,7 @@ GUI 说明：写信/邮箱管理/账户设置/管理面板均为服务端箱式�
 |---|---|---|
 | 账号库 | `config/yzt_super/users.json` | PBKDF2 哈希，Base64 盐与摘要 |
 | 留言库 | `config/yzt_super/mail.json` | 私信与公开留言板（限量 + 超期自动清理） |
-| 位置库 | `config/yzt_super/lastseen.json` | 每个玩家最后下线位置（一人一条） |
+| 位置库 | `config/yzt_super/lastseen.json` | 每个玩家最后下线位置与游戏模式（一人一条；v1 自动兼容读取，升级后写为 v2） |
 | 高风险库 | `config/yzt_super/risk.json` | 管理类危险操作台账（只记动作/主体，无明文），上限 500 条 |
 | 审计日志 | `logs/yzt_super-audit.log` | 登录/闸门结果行（名字 / IP / 结果词，无明文） |
 | 服务器配置 | `world/serverconfig/yzt_super-server.toml` | Forge SERVER 配置按世界存放 |
@@ -167,6 +167,7 @@ GUI 说明：写信/邮箱管理/账户设置/管理面板均为服务端箱式�
 | `mailExpireDays` | 30 | 留言超期天数，超期自动清理 |
 | `auditLogEnabled` | true | 是否写 `logs/yzt_super-audit.log` |
 | `notifyAdminOnLogin` | true | 玩家登录时是否通知在线管理员 |
+| `restoreLastGameMode` | true | 密码验证成功后恢复玩家上次退出时的模式（生存/创造/冒险/旁观）；关闭后保持服务器当前模式 |
 | `afkLogoutEnabled` | false | AFK 自动登出开关（**默认关闭**） |
 | `afkLogoutSeconds` | 600 | AFK 判定秒数（无位移即计时） |
 | `welcomeTitleText` | 空 | 自定义欢迎标题（空=用语言键） |

@@ -31,6 +31,7 @@ public final class AuthConfig {
     public static int mailExpireDays()             { return V.mailExpireDays.get(); }
     public static boolean auditLogEnabled()        { return V.auditLogEnabled.get(); }
     public static boolean notifyAdminOnLogin()     { return V.notifyAdminOnLogin.get(); }
+    public static boolean restoreLastGameMode()     { return V.restoreLastGameMode.get(); }
     public static boolean afkLogoutEnabled()       { return V.afkLogoutEnabled.get(); }
     public static int afkLogoutSeconds()           { return V.afkLogoutSeconds.get(); }
     public static boolean afkAnnounceEnabled()     { return V.afkAnnounceEnabled.get(); }
@@ -66,6 +67,7 @@ public final class AuthConfig {
         final ForgeConfigSpec.IntValue mailExpireDays;
         final ForgeConfigSpec.BooleanValue auditLogEnabled;
         final ForgeConfigSpec.BooleanValue notifyAdminOnLogin;
+        final ForgeConfigSpec.BooleanValue restoreLastGameMode;
         final ForgeConfigSpec.BooleanValue afkLogoutEnabled;
         final ForgeConfigSpec.IntValue afkLogoutSeconds;
         final ForgeConfigSpec.BooleanValue afkAnnounceEnabled;
@@ -114,6 +116,7 @@ public final class AuthConfig {
             mailExpireDays     = b.comment("留言超期天数").defineInRange("mailExpireDays", 30, 1, 3650);
             auditLogEnabled    = b.comment("写审计日志 logs/yzt_super-audit.log").define("auditLogEnabled", true);
             notifyAdminOnLogin = b.comment("登录通知在线管理员").define("notifyAdminOnLogin", true);
+            restoreLastGameMode = b.comment("玩家密码验证成功后恢复其上次退出时的游戏模式").define("restoreLastGameMode", true);
             afkLogoutEnabled   = b.comment("AFK 自动登出（默认关）").define("afkLogoutEnabled", false);
             afkLogoutSeconds   = b.comment("AFK 判定秒数").defineInRange("afkLogoutSeconds", 600, 30, 86400);
             welcomeTitleText   = b.comment("自定义欢迎标题（空=用语言键）").define("welcomeTitleText", "");

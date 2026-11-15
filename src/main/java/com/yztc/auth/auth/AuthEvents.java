@@ -139,6 +139,7 @@ public final class AuthEvents {
         s.x = p.getX(); s.y = p.getY(); s.z = p.getZ();
         s.yaw = p.getYRot(); s.pitch = p.getXRot();
         s.at = System.currentTimeMillis();
+        s.gameMode = p.gameMode.getGameModeForPlayer().getName();
         store.put(s);
         try {
             store.save();
