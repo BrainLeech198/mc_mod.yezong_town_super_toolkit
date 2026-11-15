@@ -31,8 +31,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 管理员面板：列出**全部账号**（含离线），不只在线玩家。
@@ -68,6 +70,20 @@ public final class AdminPanel {
         return page * PER_PAGE + (slotId - 9);
     }
 
+    /** 纯逻辑：账号键忽略大小写去重；有多种大小写时优先保留规范小写键。 */
+    public static List<String> uniqueAccountNames(Iterable<String> accountNames) {
+        Map<String, String> unique = new HashMap<>();
+        for (String name : accountNames) {
+            if (name == null || name.isBlank()) continue;
+            String normalized = name.toLowerCase(Locale.ROOT);
+            String previous = unique.get(normalized);
+            if (previous == null || name.equals(normalized)) unique.put(normalized, name);
+        }
+        List<String> result = new ArrayList<>(unique.values());
+        result.sort(String::compareToIgnoreCase);
+        return result;
+    }
+
     private static ItemStack named(Item item, Component name) {
         ItemStack st = new ItemStack(item);
         st.setHoverName(name);
@@ -100,8 +116,7 @@ public final class AdminPanel {
         private void refresh() {
             for (int i = 0; i < SIZE; i++) container.setItem(i, ItemStack.EMPTY);
             names.clear();
-            names.addAll(StoreHolder.get().names());
-            names.sort(String::compareToIgnoreCase);
+            names.addAll(uniqueAccountNames(StoreHolder.get().names()));
             if (names.isEmpty()) {
                 container.setItem(4, named(Items.BARRIER, Lang.msg("admin_no_accounts")));
                 return;
