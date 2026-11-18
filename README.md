@@ -1,4 +1,6 @@
-# 野粽乡·超级工具箱
+# 野粽乡超级工具箱
+
+**Yezong Town Super Toolkit**
 
 面向 Minecraft 1.20.1 / Forge 47 的服务端 mod，包含登录认证、全服闸门、留言、最后位置、风险记录、广播和称号等功能。
 
