@@ -11,6 +11,7 @@ import com.yztc.auth.lang.Lang;
 import com.yztc.auth.ui.AccountPanel;
 import com.yztc.auth.ui.AuthGui;
 import com.yztc.auth.ui.EmailFlow;
+import com.yztc.auth.ui.HomePanel;
 import com.yztc.auth.ui.LogoutPrompt;
 import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.commands.CommandSourceStack;
@@ -23,7 +24,17 @@ public final class RootCommand {
     private RootCommand() {}
 
     public static void register(CommandDispatcher<CommandSourceStack> d, AuthManager auth, GateManager gate) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("yzts");
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("yzts")
+                .executes(ctx -> runGated(ctx.getSource(), auth, p -> {
+                    HomePanel.open(p, auth, gate, ctx.getSource());
+                    return 1;
+                }));
+
+        root.then(Commands.literal("menu")
+                .executes(ctx -> runGated(ctx.getSource(), auth, p -> {
+                    HomePanel.open(p, auth, gate, ctx.getSource());
+                    return 1;
+                })));
 
         root.then(Commands.literal("gate")
                 .executes(ctx -> runPlayer(ctx.getSource(), p -> {

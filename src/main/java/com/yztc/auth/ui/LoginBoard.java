@@ -55,7 +55,8 @@ public final class LoginBoard {
     public static List<Btn> accountButtons() {
         return List.of(
                 new Btn("btn_account", "/yzts account", true),
-                new Btn("btn_guide", "/yzts help", false));
+                new Btn("btn_guide", "/yzts help", false),
+                new Btn("btn_home", "/yzts menu", true));
     }
 
     /** 全部按钮（邮箱段 + 账号段，按显示顺序）。 */

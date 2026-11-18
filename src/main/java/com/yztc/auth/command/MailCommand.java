@@ -168,8 +168,13 @@ public final class MailCommand {
 
     private static int board(CommandSourceStack src) {
         ServerPlayer p = player(src);
+        return p == null ? 0 : showBoard(p);
+    }
+
+    /** 供功能大厅等 GUI 入口复用：显示公开留言板。 */
+    public static int showBoard(ServerPlayer p) {
         MailStore store = store();
-        if (p == null || store == null) return 0;
+        if (store == null) return 0;
         List<Mail> board = store.board();
         List<Component> lines = new ArrayList<>();
         if (board.isEmpty()) lines.add(Lang.msg("mail_none"));

@@ -1,6 +1,6 @@
 # yzt_super（野粽乡·超级工具箱）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。目标 mod id：`yzt_super`，显示名（PCL2 等从 `mods.toml` 读到、对外展示的就是它）：**野粽乡·超级工具箱**，当前产物：`build/libs/yzt_super-1.2.0.jar`。
+用于把在用的 SAuth-2.0.0 换成本 mod。目标 mod id：`yzt_super`，显示名（PCL2 等从 `mods.toml` 读到、对外展示的就是它）：**野粽乡·超级工具箱**，当前产物：`build/libs/yzt_super-1.3.0.jar`。
 
 ## 1. 迁移前备份
 
@@ -20,7 +20,7 @@ export PATH="$HOME/.gradle/wrapper/dists/gradle-8.14.4-bin/*/gradle-8.14.4/bin:$
 gradle build --no-daemon --console=plain -Dfg.check.certs=false
 ```
 
-产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.2.0.jar`。纯逻辑自测：
+产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.3.0.jar`。纯逻辑自测：
 
 ```bash
 gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
@@ -66,6 +66,7 @@ gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
 
 | 指令 | 说明 | 权限 |
 |---|---|---|
+| `/yzts` / `/yzts menu` | 打开功能大厅：账户、邮箱、留言板、称号、下线位置、喊话与指南；管理员另见管理入口 | 已登录玩家 |
 | `/yzts logout` | 聊天栏二选一：退出服务器 / 仅登出账号 | 所有人 |
 | `/yzts logout quit` | 直接退出服务器 | 所有人 |
 | `/yzts logout stay` | 仅登出账号（留在服内，回到未登入锁定态） | 所有人 |
