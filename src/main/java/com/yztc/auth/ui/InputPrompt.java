@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 /**
  * 双入口二选一：铁砧输入（快，但不能有空格）/ 命令输入（可含空格）。
@@ -45,11 +44,10 @@ public final class InputPrompt {
      * @param cmdSuggest  点「命令输入」后填入聊天栏的命令前缀（玩家补全内容后发送）
      */
     public static void choose(ServerPlayer p, Component promptTitle, Component anvilTitle,
-                              Consumer<String> onAnvil, String cmdSuggest) {
+                              AnvilInput.SubmitHandler onAnvil, String cmdSuggest) {
         // 输入方式提示在聊天栏显示，先关闭可能仍打开的箱子菜单，避免两种界面同时占屏。
         p.closeContainer();
-        String token = register(() -> AnvilInput.open(p, anvilTitle,
-                UiSession.open(p.getUUID(), onAnvil, () -> {})));
+        String token = register(() -> AnvilInput.openFlow(p, anvilTitle, anvilTitle, onAnvil, () -> {}));
         Component buttons = Component.empty()
                 .append(ChatPrompt.runButton(Lang.msg("btn_anvil"), "/yzts input " + token))
                 .append(Component.literal("   "))

@@ -72,10 +72,13 @@ public final class TitlePanel {
         if (store == null) return;
         String name = TitleService.normalizeName(v.getGameProfile().getName());
         if (!TitleService.canSelect(id, store.ownedOf(name), store.definitions())) return;
+        String previous = store.selectedOf(name);
         store.select(name, id);
         try {
             store.save();
         } catch (IOException e) {
+            if (previous.isBlank()) store.clearSelected(name);
+            else store.select(name, previous);
             v.sendSystemMessage(Lang.msg("err_save", e.getMessage()));
             return;
         }
@@ -93,10 +96,12 @@ public final class TitlePanel {
             v.sendSystemMessage(Lang.msg("title_none"));
             return;
         }
+        String previous = store.selectedOf(name);
         store.clearSelected(name);
         try {
             store.save();
         } catch (IOException e) {
+            store.select(name, previous);
             v.sendSystemMessage(Lang.msg("err_save", e.getMessage()));
             return;
         }

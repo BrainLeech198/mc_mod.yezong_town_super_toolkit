@@ -54,7 +54,9 @@ public final class MailPanel {
         InputPrompt.choose(v,
                 Lang.msg("input_choose"),
                 Lang.msg("mail_compose_to", to),
-                text -> MailCommand.deliver(v, to, text),
+                (player, text) -> MailCommand.deliver(player, to, text) > 0
+                        ? AnvilInput.Response.close()
+                        : AnvilInput.Response.keep(null),
                 "/yzts mail send " + to + " ");
     }
 
@@ -69,10 +71,7 @@ public final class MailPanel {
             return AnvilInput.Response.next(Lang.msg("mail_compose_to", to), (ignoredPlayer, text) -> {
                 int sent = MailCommand.deliver(v, to, text);
                 if (sent > 0) return AnvilInput.Response.close();
-                if (text == null || text.isBlank()) {
-                    return AnvilInput.Response.retry(Lang.msg("mail_compose_to", to));
-                }
-                return AnvilInput.Response.close();
+                return AnvilInput.Response.keep(null);
             });
         }, () -> {});
     }
@@ -212,10 +211,12 @@ public final class MailPanel {
             return;
         }
         if (!m.isPublic && m.readAt == 0) {
+            long previousReadAt = m.readAt;
             store.markRead(m.id);
             try {
                 store.save();
             } catch (IOException e) {
+                m.readAt = previousReadAt;
                 viewer.sendSystemMessage(Lang.msg("err_mail_save", e.getMessage()));
             }
         }
@@ -231,13 +232,19 @@ public final class MailPanel {
 
     private static void delete(ServerPlayer v, String id) {
         MailStore store = StoreHolder.mail();
-        if (store != null) {
-            store.remove(id);
-            try {
-                store.save();
-            } catch (IOException e) {
-                v.sendSystemMessage(Lang.msg("err_mail_save", e.getMessage()));
-            }
+        Mail removed = store == null ? null : store.byId(id);
+        if (removed == null || !store.remove(id)) {
+            v.sendSystemMessage(Lang.msg("mail_del_none"));
+            openManage(v);
+            return;
+        }
+        try {
+            store.save();
+        } catch (IOException e) {
+            store.add(removed);
+            v.sendSystemMessage(Lang.msg("err_mail_save", e.getMessage()));
+            openManage(v);
+            return;
         }
         v.sendSystemMessage(Lang.msg("mail_del_ok"));
         openManage(v);

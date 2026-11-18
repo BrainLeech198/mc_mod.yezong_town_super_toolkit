@@ -95,8 +95,13 @@ public final class TitleCommand {
             p.sendSystemMessage(Lang.msg("title_not_owned"));
             return 0;
         }
+        String previous = store.selectedOf(name);
         store.select(name, id);
-        if (!save(p, store)) return 0;
+        if (!save(p, store)) {
+            if (previous.isBlank()) store.clearSelected(name);
+            else store.select(name, previous);
+            return 0;
+        }
         p.sendSystemMessage(Lang.msg("title_set_ok", store.def(id) == null ? id : store.def(id).text));
         TitleEvents.refreshDisplay(p);
         return 1;
@@ -111,8 +116,9 @@ public final class TitleCommand {
             p.sendSystemMessage(Lang.msg("title_none"));
             return 1;
         }
+        String previous = store.selectedOf(name);
         store.clearSelected(name);
-        if (!save(p, store)) return 0;
+        if (!save(p, store)) { store.select(name, previous); return 0; }
         p.sendSystemMessage(Lang.msg("title_clear_ok"));
         TitleEvents.refreshDisplay(p);
         return 1;
@@ -134,7 +140,7 @@ public final class TitleCommand {
             return 0;
         }
         store.give(target, id);
-        if (!save(src, store)) return 0;
+        if (!save(src, store)) { store.take(target, id); return 0; }
         src.sendSuccess(() -> Lang.msg("title_gave", player, id), true);
         refreshIfOnline(src, target);
         return 1;
@@ -148,8 +154,13 @@ public final class TitleCommand {
             src.sendFailure(Lang.msg("title_not_owned"));
             return 0;
         }
+        String previousSelected = store.selectedOf(target);
         store.take(target, id);
-        if (!save(src, store)) return 0;
+        if (!save(src, store)) {
+            store.give(target, id);
+            if (id.equals(previousSelected)) store.select(target, previousSelected);
+            return 0;
+        }
         src.sendSuccess(() -> Lang.msg("title_taken", player, id), true);
         refreshIfOnline(src, target);
         return 1;
@@ -162,8 +173,13 @@ public final class TitleCommand {
         if (text == null || text.isBlank()) { src.sendFailure(Lang.msg("title_bad_id")); return 0; }
         String c = color == null ? "GOLD" : color.toUpperCase(Locale.ROOT);
         if (!isColor(c)) { src.sendFailure(Lang.msg("title_bad_color")); return 0; }
+        TitleDef previous = store.def(id);
         store.define(id, text, c);
-        if (!save(src, store)) return 0;
+        if (!save(src, store)) {
+            if (previous == null) store.undefine(id);
+            else store.definitions().put(id, previous);
+            return 0;
+        }
         src.sendSuccess(() -> Lang.msg("title_defined", id), true);
         return 1;
     }
@@ -171,8 +187,12 @@ public final class TitleCommand {
     private static int undefine(CommandSourceStack src, String id) {
         TitleStore store = StoreHolder.titles();
         if (store == null) return 0;
+        TitleDef previous = store.def(id);
         store.undefine(id);
-        if (!save(src, store)) return 0;
+        if (!save(src, store)) {
+            if (previous != null) store.definitions().put(id, previous);
+            return 0;
+        }
         src.sendSuccess(() -> Lang.msg("title_undefined", id), true);
         return 1;
     }

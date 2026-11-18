@@ -84,6 +84,7 @@ public final class MailCommand {
         try {
             store.save();
         } catch (IOException e) {
+            store.remove(m.id);
             p.sendSystemMessage(Lang.msg("err_mail_save", e.getMessage()));
             return 0;
         }
@@ -130,7 +131,10 @@ public final class MailCommand {
         m.to = ""; m.text = text;
         m.createdAt = System.currentTimeMillis(); m.isPublic = true;
         store.add(m);
-        if (!save(p, store)) return 0;
+        if (!save(p, store)) {
+            store.remove(m.id);
+            return 0;
+        }
         p.sendSystemMessage(Lang.msg("mail_posted"));
         return 1;
     }
@@ -153,12 +157,15 @@ public final class MailCommand {
         lines.add(Lang.msg("mail_list_header", String.valueOf(unread)));
         if (inbox.isEmpty()) lines.add(Lang.msg("mail_none"));
         else for (Mail m : inbox) lines.add(line(m));
+        List<Long> previousReadAt = inbox.stream().map(m -> m.readAt).toList();
         for (Mail m : inbox) store.markRead(m.id);
         List<Mail> board = store.board();
         lines.add(Lang.msg("mail_board_header"));
         if (board.isEmpty()) lines.add(Lang.msg("mail_none"));
         else for (Mail m : board) lines.add(line(m));
-        save(p, store);
+        if (!save(p, store)) {
+            for (int i = 0; i < inbox.size(); i++) inbox.get(i).readAt = previousReadAt.get(i);
+        }
 
         for (Component c : com.yztc.auth.ui.ChatBox.box(Lang.msg("mail_box_title"), lines)) {
             p.sendSystemMessage(c);
@@ -195,8 +202,11 @@ public final class MailCommand {
         if (!MailStore.canDelete(m, name, Permissions.isAdmin(p))) {
             p.sendSystemMessage(Lang.msg("mail_del_denied")); return 0;
         }
-        store.remove(id);
-        save(p, store);
+        if (!store.remove(id)) { p.sendSystemMessage(Lang.msg("mail_del_none")); return 0; }
+        if (!save(p, store)) {
+            store.add(m);
+            return 0;
+        }
         p.sendSystemMessage(Lang.msg("mail_del_ok"));
         return 1;
     }

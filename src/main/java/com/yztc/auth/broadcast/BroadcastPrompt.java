@@ -14,7 +14,9 @@ public final class BroadcastPrompt {
         InputPrompt.choose(p,
                 Lang.msg("input_choose"),
                 Lang.msg("broadcast_say"),
-                text -> BroadcastCommand.performSay(p, text),
+                (player, text) -> BroadcastCommand.performSay(player, text) > 0
+                        ? AnvilInput.Response.close()
+                        : AnvilInput.Response.keep(null),
                 "/yzts say ");
     }
 
