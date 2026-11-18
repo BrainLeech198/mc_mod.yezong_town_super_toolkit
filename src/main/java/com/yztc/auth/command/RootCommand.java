@@ -225,8 +225,6 @@ public final class RootCommand {
         switch (auth.register(p, pw)) {
             case OK -> {
                 p.sendSystemMessage(Lang.msg("register_ok"));
-                // A3：提示密码强度（弱/中/强），引导玩家用更强的密码
-                p.sendSystemMessage(Lang.msg("password_strength", Lang.msg(strengthKey(pw))));
                 com.yztc.auth.ui.Sounds.ok(p);
             }
             case NO_ACCOUNT -> {
@@ -245,11 +243,4 @@ public final class RootCommand {
         return 1;
     }
 
-    private static String strengthKey(String pw) {
-        return switch (com.yztc.auth.data.PasswordStrength.of(pw)) {
-            case WEAK -> "strength_weak";
-            case MEDIUM -> "strength_mid";
-            case STRONG -> "strength_strong";
-        };
-    }
 }

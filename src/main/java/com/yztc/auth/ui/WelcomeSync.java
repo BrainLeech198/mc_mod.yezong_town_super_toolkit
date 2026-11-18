@@ -34,7 +34,9 @@ public final class WelcomeSync {
     /** 输入框标题直接说明当前目标：过闸、老玩家登录或新玩家设置密码。 */
     public static Component anvilTitle(boolean gate, boolean registered) {
         if (gate) return Lang.msg("prompt_gate.anvil");
-        return Lang.msg(registered ? "prompt_login.anvil" : "prompt_register.anvil");
+        return registered
+                ? Lang.msg("prompt_login.anvil")
+                : Lang.msg("prompt_register.anvil", AuthConfig.minPasswordLength());
     }
 
     /** 副标题（登录/注册路径）：黄色。registered=true 引导登录，否则引导注册。 */

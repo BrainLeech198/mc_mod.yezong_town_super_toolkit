@@ -3,12 +3,13 @@ package com.yztc.auth.ui;
 import com.yztc.auth.auth.AuthManager;
 import com.yztc.auth.auth.GateManager;
 import com.yztc.auth.command.RootCommand;
+import com.yztc.auth.lang.Lang;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Locale;
 
 /**
- * 认证用铁砧输入框：进服/过闸后自动弹出，点左侧占位纸后在名字框输入，点右侧结果槽提交；Esc 取消。
+ * 认证用铁砧输入框：进服/过闸后自动弹出；点顶部输入框输入，点右侧结果槽提交；Esc 关闭。
  *
  * <p>提交时复用 {@link RootCommand} 与 {@link AuthManager} 的认证逻辑，因此闸门校验、失败计数、审计、封锁放行等规则保持一致；
  * 失败时保留当前窗口，成功后关闭。
@@ -31,7 +32,7 @@ public final class AuthGui {
                     openLoginOrRegister(player, auth);
                 });
             }
-            return AnvilInput.Response.retry(null);
+            return AnvilInput.Response.retry(Lang.msg("auth_gate_retry"));
         }, () -> {});
     }
 
@@ -45,7 +46,8 @@ public final class AuthGui {
             else RootCommand.doRegister(player, auth, password);
             return auth != null && auth.isAuthenticated(player)
                     ? AnvilInput.Response.close()
-                    : AnvilInput.Response.retry(null);
+                    : AnvilInput.Response.retry(Lang.msg(hasAccount
+                            ? "auth_login_retry" : "auth_register_retry"));
         }, () -> {});
     }
 }

@@ -275,12 +275,12 @@ public final class SelfTestMain {
 
         var loginBtn = com.yztc.auth.ui.WelcomeSync.button(false, true);
         Assert.that(loginBtn.getString().contains("需要登录"), "登录提示说明需要登录");
-        Assert.that(loginBtn.getString().contains("【重新输入】"), "登录提示只有一个重新输入按钮");
+        Assert.that(loginBtn.getString().contains("【打开输入框】"), "登录提示只有一个打开输入框按钮");
         Assert.eq(loginBtn.getSiblings().size(), 1, "登录提示仅一个可点入口");
         var guiSeg = loginBtn.getSiblings().get(0);
         Assert.eq(guiSeg.getStyle().getClickEvent().getAction(),
                 net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                "重新输入按钮点击即打开铁砧框");
+                "打开输入框按钮点击即打开铁砧框");
         Assert.eq(guiSeg.getStyle().getClickEvent().getValue(), "/yzts login",
                 "登录重开命令正确");
 
