@@ -129,9 +129,10 @@ public final class AdminCommands {
         String key = name.toLowerCase(Locale.ROOT);
         Account a = com.yztc.auth.data.StoreHolder.get().get(key);
         if (a == null) { src.sendFailure(Lang.msg("admin_no_account", name)); return 0; }
+        Account previous = a.copy();
         PasswordUtil.assign(a, pw, com.yztc.auth.config.AuthConfig.pbkdf2Iterations());
-        com.yztc.auth.data.StoreHolder.get().put(key, a);
         try { com.yztc.auth.data.StoreHolder.get().save(); } catch (IOException e) {
+            com.yztc.auth.data.StoreHolder.get().put(key, previous);
             src.sendFailure(Lang.msg("err_save", e.getMessage())); return 0;
         }
         src.sendSuccess(() -> Lang.msg("admin_reset_ok", name), true);
@@ -141,16 +142,24 @@ public final class AdminCommands {
 
     public static int deleteAccount(CommandSourceStack src, String name) {
         String key = name.toLowerCase(Locale.ROOT);
-        boolean removed = com.yztc.auth.data.StoreHolder.get().remove(key);
-        try { com.yztc.auth.data.StoreHolder.get().save(); } catch (IOException ignored) {}
-        src.sendSuccess(() -> Lang.msg(removed ? "admin_delete_ok" : "admin_no_account", name), true);
-        if (removed) {
-            RiskLog.record(RiskLog.ACCOUNT_DELETE, RiskLog.actorOf(src), key, null);
-            // 账号已删除：若其人正在线，直接断开（认证态随退服事件一并清理）
-            ServerPlayer online = find(src.getServer(), name);
-            if (online != null) online.connection.disconnect(Lang.msg("admin_delete_kick"));
+        var store = com.yztc.auth.data.StoreHolder.get();
+        Account previous = store.get(key);
+        if (previous == null) {
+            src.sendFailure(Lang.msg("admin_no_account", name));
+            return 0;
         }
-        return removed ? 1 : 0;
+        store.remove(key);
+        try { store.save(); } catch (IOException e) {
+            store.put(key, previous);
+            src.sendFailure(Lang.msg("err_save", e.getMessage()));
+            return 0;
+        }
+        src.sendSuccess(() -> Lang.msg("admin_delete_ok", name), true);
+        RiskLog.record(RiskLog.ACCOUNT_DELETE, RiskLog.actorOf(src), key, null);
+        // 账号已删除：若其人正在线，直接断开（认证态随退服事件一并清理）
+        ServerPlayer online = find(src.getServer(), name);
+        if (online != null) online.connection.disconnect(Lang.msg("admin_delete_kick"));
+        return 1;
     }
 
     public static int forceLogin(CommandSourceStack src, AuthManager auth, String name) {

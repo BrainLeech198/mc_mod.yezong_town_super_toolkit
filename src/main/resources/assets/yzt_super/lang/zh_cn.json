@@ -24,6 +24,7 @@
   "yzt_super.msg.auth_login_retry": "请根据上面的提示检查后再试。忘记密码了？请找管理员帮忙。",
   "yzt_super.msg.auth_register_retry": "注册还没完成。请按上面的提示修改后再试；如果提示等待，请稍后再试。",
   "yzt_super.msg.auth_gate_retry": "请按上面的提示重新输入；如果提示等待，请稍后再试。",
+  "yzt_super.msg.auth_storage_error": "账号暂时没有保存成功，请稍后重试；如果再次出现，请联系管理员。",
   "yzt_super.msg.welcome.title": "欢迎回来",
   "yzt_super.msg.welcome.sub": "祝你玩得开心，%s",
   "yzt_super.msg.gate_ok": "已通过全服门禁。",

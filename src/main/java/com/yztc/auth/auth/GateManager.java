@@ -62,12 +62,24 @@ public final class GateManager {
         g.salt = ENC.encodeToString(h.salt());
         g.hash = ENC.encodeToString(h.hash());
         g.updatedAt = System.currentTimeMillis();
+        Gate previous = store.getGate();
         store.setGate(g);
-        store.save();
+        try {
+            store.save();
+        } catch (IOException e) {
+            store.setGate(previous);
+            throw e;
+        }
     }
 
     public void clear() throws IOException {
+        Gate previous = store.getGate();
         store.clearGate();
-        store.save();
+        try {
+            store.save();
+        } catch (IOException e) {
+            store.setGate(previous);
+            throw e;
+        }
     }
 }

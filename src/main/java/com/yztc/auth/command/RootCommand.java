@@ -87,10 +87,16 @@ public final class RootCommand {
                 .then(Commands.argument("old", StringArgumentType.greedyString())
                         .then(Commands.argument("new", StringArgumentType.greedyString())
                                 .executes(ctx -> runGated(ctx.getSource(), auth, p -> {
-                                    boolean ok = auth.changePassword(p, StringArgumentType.getString(ctx, "old"),
+                                    AuthManager.PasswordChangeResult result = auth.changePassword(p, StringArgumentType.getString(ctx, "old"),
                                             StringArgumentType.getString(ctx, "new"));
-                                    p.sendSystemMessage(Lang.msg(ok ? "changepw_ok" : "changepw_bad"));
-                                    if (ok) com.yztc.auth.ui.Sounds.ok(p);
+                                    switch (result) {
+                                        case CHANGED -> p.sendSystemMessage(Lang.msg("changepw_ok"));
+                                        case SAVE_FAILED -> p.sendSystemMessage(Lang.msg("auth_storage_error"));
+                                        case INVALID_NEW_PASSWORD -> p.sendSystemMessage(
+                                                Lang.msg("register_too_short", AuthConfig.minPasswordLength()));
+                                        default -> p.sendSystemMessage(Lang.msg("changepw_bad"));
+                                    }
+                                    if (result == AuthManager.PasswordChangeResult.CHANGED) com.yztc.auth.ui.Sounds.ok(p);
                                     else com.yztc.auth.ui.Sounds.fail(p);
                                     return 1;
                                 })))));
@@ -227,7 +233,7 @@ public final class RootCommand {
                 p.sendSystemMessage(Lang.msg("register_ok"));
                 com.yztc.auth.ui.Sounds.ok(p);
             }
-            case NO_ACCOUNT -> {
+            case ALREADY_REGISTERED -> {
                 p.sendSystemMessage(Lang.msg("register_exists"));
                 com.yztc.auth.ui.Sounds.fail(p);
             }
@@ -235,8 +241,12 @@ public final class RootCommand {
                 p.sendSystemMessage(Lang.msg("login_rate_limited"));
                 com.yztc.auth.ui.Sounds.fail(p);
             }
-            default -> {
-                p.sendSystemMessage(Lang.msg("not_registered"));
+            case SAVE_FAILED -> {
+                p.sendSystemMessage(Lang.msg("auth_storage_error"));
+                com.yztc.auth.ui.Sounds.fail(p);
+            }
+            case INVALID_PASSWORD -> {
+                p.sendSystemMessage(Lang.msg("register_too_short", AuthConfig.minPasswordLength()));
                 com.yztc.auth.ui.Sounds.fail(p);
             }
         }

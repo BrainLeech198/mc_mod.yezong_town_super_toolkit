@@ -24,6 +24,7 @@
   "yzt_super.msg.auth_login_retry": "Check the message above and try again. Ask a server admin for help if you forgot your password.",
   "yzt_super.msg.auth_register_retry": "Registration is not finished. Follow the message above and try again. If asked to wait, try later.",
   "yzt_super.msg.auth_gate_retry": "Follow the message above and try again. If asked to wait, try later.",
+  "yzt_super.msg.auth_storage_error": "Your account was not saved. Please try again later or ask a server admin for help.",
   "yzt_super.msg.welcome.title": "Welcome back",
   "yzt_super.msg.welcome.sub": "Enjoy your stay, %s",
   "yzt_super.msg.gate_ok": "Server gate passed.",

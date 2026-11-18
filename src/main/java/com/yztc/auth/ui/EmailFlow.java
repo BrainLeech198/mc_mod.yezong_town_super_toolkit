@@ -33,6 +33,10 @@ public final class EmailFlow {
                 p.sendSystemMessage(Lang.msg("not_registered"));
                 Sounds.fail(p);
             }
+            case SAVE_FAILED -> {
+                p.sendSystemMessage(Lang.msg("auth_storage_error"));
+                Sounds.fail(p);
+            }
             case ALREADY_SET -> change(p, auth, a);
             default -> {
                 p.sendSystemMessage(Lang.msg("email_change_fail"));
@@ -65,6 +69,11 @@ public final class EmailFlow {
                 Sounds.fail(p);
                 yield AnvilInput.Response.close();
             }
+            case SAVE_FAILED -> {
+                p.sendSystemMessage(Lang.msg("auth_storage_error"));
+                Sounds.fail(p);
+                yield AnvilInput.Response.retry(Lang.msg("email_prompt_new"));
+            }
             case ALREADY_SET -> AnvilInput.Response.next(Lang.msg("email_prompt_old"),
                     (player, oldEmail) -> oldEmailStep(p, auth, normalized, oldEmail));
             default -> {
@@ -92,6 +101,11 @@ public final class EmailFlow {
                 }
                 case BAD_PASSWORD -> {
                     p.sendSystemMessage(Lang.msg("email_bad_pw"));
+                    Sounds.fail(p);
+                    return AnvilInput.Response.retry(Lang.msg("email_prompt_pw"));
+                }
+                case SAVE_FAILED -> {
+                    p.sendSystemMessage(Lang.msg("auth_storage_error"));
                     Sounds.fail(p);
                     return AnvilInput.Response.retry(Lang.msg("email_prompt_pw"));
                 }

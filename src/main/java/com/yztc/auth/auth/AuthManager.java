@@ -240,6 +240,8 @@ public final class AuthManager {
     }
 
     public enum LoginResult { OK, BAD, LOCKED, RATE_LIMITED, NO_ACCOUNT }
+    public enum RegisterResult { OK, INVALID_PASSWORD, ALREADY_REGISTERED, RATE_LIMITED, SAVE_FAILED }
+    public enum PasswordChangeResult { CHANGED, INVALID_NEW_PASSWORD, NO_ACCOUNT, BAD_OLD_PASSWORD, SAVE_FAILED }
 
     public LoginResult login(ServerPlayer p, String password) {
         String ip = resolveIp(p);
@@ -310,12 +312,12 @@ public final class AuthManager {
         return LoginResult.OK;
     }
 
-    public LoginResult register(ServerPlayer p, String password) {
-        if (password.length() < AuthConfig.minPasswordLength()) { Sounds.fail(p); return LoginResult.BAD; }
+    public RegisterResult register(ServerPlayer p, String password) {
+        if (password.length() < AuthConfig.minPasswordLength()) { Sounds.fail(p); return RegisterResult.INVALID_PASSWORD; }
         String ip = resolveIp(p);
-        if (!limiter.tryAcquire(ip, System.currentTimeMillis())) { Sounds.fail(p); return LoginResult.RATE_LIMITED; }
+        if (!limiter.tryAcquire(ip, System.currentTimeMillis())) { Sounds.fail(p); return RegisterResult.RATE_LIMITED; }
         String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
-        if (store.contains(name)) { Sounds.fail(p); return LoginResult.NO_ACCOUNT; } // 已存在 → 让调用方提示"去登录"
+        if (store.contains(name)) { Sounds.fail(p); return RegisterResult.ALREADY_REGISTERED; }
 
         PasswordHasher.Hashed h = PasswordHasher.pbkdf2(password.toCharArray(), AuthConfig.pbkdf2Iterations(), 16);
         Account a = new Account();
@@ -326,11 +328,15 @@ public final class AuthManager {
         a.registeredAt = System.currentTimeMillis();
         a.lastLogin = a.registeredAt;
         store.put(name, a);
-        persist();
+        if (!persist()) {
+            store.remove(name);
+            Sounds.fail(p);
+            return RegisterResult.SAVE_FAILED;
+        }
 
         completeAuth(p);
         limiter.reset(ip);
-        return LoginResult.OK;
+        return RegisterResult.OK;
     }
 
     public void logout(ServerPlayer p, String mode) {
@@ -356,21 +362,25 @@ public final class AuthManager {
         limiter.reset(ip);
     }
 
-    public boolean changePassword(ServerPlayer p, String oldPw, String newPw) {
-        if (newPw.length() < AuthConfig.minPasswordLength()) { Sounds.fail(p); return false; }
+    public PasswordChangeResult changePassword(ServerPlayer p, String oldPw, String newPw) {
+        if (newPw.length() < AuthConfig.minPasswordLength()) return PasswordChangeResult.INVALID_NEW_PASSWORD;
         String name = p.getGameProfile().getName().toLowerCase(Locale.ROOT);
         Account a = store.get(name);
-        if (a == null) { Sounds.fail(p); return false; }
+        if (a == null) return PasswordChangeResult.NO_ACCOUNT;
         boolean ok = verifyPassword(a, oldPw);
-        if (!ok) { Sounds.fail(p); return false; }
+        if (!ok) return PasswordChangeResult.BAD_OLD_PASSWORD;
+        Account previous = a.copy();
         PasswordHasher.Hashed h = PasswordHasher.pbkdf2(newPw.toCharArray(), AuthConfig.pbkdf2Iterations(), 16);
         a.algo = PasswordHasher.ALGO_PBKDF2;
         a.iterations = h.iterations();
         a.salt = ENC.encodeToString(h.salt());
         a.hash = ENC.encodeToString(h.hash());
-        persist();
+        if (!persist()) {
+            store.put(name, previous);
+            return PasswordChangeResult.SAVE_FAILED;
+        }
         Sounds.ok(p);
-        return true;
+        return PasswordChangeResult.CHANGED;
     }
 
     /** 由命令/面板/控制台调用的、对目标玩家直接落认证态的入口。 */
@@ -395,7 +405,7 @@ public final class AuthManager {
     }
 
     /** 邮箱操作结果。 */
-    public enum EmailResult { SET, ALREADY_SET, BAD_OLD_EMAIL, BAD_PASSWORD, NO_ACCOUNT }
+    public enum EmailResult { SET, ALREADY_SET, BAD_OLD_EMAIL, BAD_PASSWORD, NO_ACCOUNT, SAVE_FAILED }
 
     /**
      * 首次绑定邮箱。已经绑过则返回 {@link EmailResult#ALREADY_SET}——邮箱只能设一次，
@@ -405,8 +415,12 @@ public final class AuthManager {
         Account a = store.get(p.getGameProfile().getName().toLowerCase(Locale.ROOT));
         if (a == null) return EmailResult.NO_ACCOUNT;
         if (a.email != null && !a.email.isBlank()) return EmailResult.ALREADY_SET;
+        String previous = a.email;
         a.email = addr.trim();
-        persist();
+        if (!persist()) {
+            a.email = previous;
+            return EmailResult.SAVE_FAILED;
+        }
         return EmailResult.SET;
     }
 
@@ -417,8 +431,12 @@ public final class AuthManager {
         if (a.email == null || a.email.isBlank()) return EmailResult.ALREADY_SET; // 未绑定无从验证
         if (!a.email.equalsIgnoreCase(oldEmail == null ? "" : oldEmail.trim())) return EmailResult.BAD_OLD_EMAIL;
         if (!verifyPassword(a, oldPw)) return EmailResult.BAD_PASSWORD;
+        String previous = a.email;
         a.email = newAddr.trim();
-        persist();
+        if (!persist()) {
+            a.email = previous;
+            return EmailResult.SAVE_FAILED;
+        }
         return EmailResult.SET;
     }
     public void persistNow() { persist(); }
@@ -513,11 +531,13 @@ public final class AuthManager {
         return event.getClientAddress() == null ? remote : event.getClientAddress().getHostAddress();
     }
 
-    private void persist() {
+    private boolean persist() {
         try {
             store.save();
+            return true;
         } catch (IOException e) {
             LOGGER.error("[yzt_super] users.json 写入失败，保留旧文件", e);
+            return false;
         }
     }
 

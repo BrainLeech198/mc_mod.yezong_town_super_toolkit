@@ -3,6 +3,7 @@ package com.yztc.auth.ui;
 import com.yztc.auth.auth.AuthManager;
 import com.yztc.auth.broadcast.BroadcastPrompt;
 import com.yztc.auth.command.MailCommand;
+import com.yztc.auth.config.AuthConfig;
 import com.yztc.auth.data.Account;
 import com.yztc.auth.data.Emails;
 import com.yztc.auth.lang.Lang;
@@ -86,11 +87,20 @@ public final class AccountPanel {
                 return AnvilInput.Response.retry(Lang.msg("changepw_prompt_old"));
             }
             return AnvilInput.Response.next(Lang.msg("changepw_prompt_new"), (ignoredPlayer, newPw) -> {
-                boolean ok = auth.changePassword(v, oldPw, newPw);
-                v.sendSystemMessage(Lang.msg(ok ? "changepw_ok" : "changepw_bad"));
-                if (ok) Sounds.ok(v); else Sounds.fail(v);
-                return ok ? AnvilInput.Response.close()
-                        : AnvilInput.Response.retry(Lang.msg("changepw_prompt_new"));
+                AuthManager.PasswordChangeResult result = auth.changePassword(v, oldPw, newPw);
+                if (result == AuthManager.PasswordChangeResult.CHANGED) {
+                    v.sendSystemMessage(Lang.msg("changepw_ok"));
+                    Sounds.ok(v);
+                    return AnvilInput.Response.close();
+                }
+                switch (result) {
+                    case SAVE_FAILED -> v.sendSystemMessage(Lang.msg("auth_storage_error"));
+                    case INVALID_NEW_PASSWORD -> v.sendSystemMessage(
+                            Lang.msg("register_too_short", AuthConfig.minPasswordLength()));
+                    default -> v.sendSystemMessage(Lang.msg("changepw_bad"));
+                }
+                Sounds.fail(v);
+                return AnvilInput.Response.retry(Lang.msg("changepw_prompt_new"));
             });
         }, () -> {});
     }

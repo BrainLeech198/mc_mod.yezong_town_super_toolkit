@@ -17,11 +17,15 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 留言库（config/yzt_super/mail.json）。写盘方式与 AccountStore 一致：.tmp 原子落盘 + .bak 备份。 */
 public final class MailStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final Logger LOGGER = LoggerFactory.getLogger("yzt_super");
 
     private final Path file;
     private final List<Mail> mails = new ArrayList<>();
@@ -43,12 +47,36 @@ public final class MailStore {
         }
         if (root.has("mails") && root.get("mails").isJsonArray()) {
             JsonArray arr = root.getAsJsonArray("mails");
-            for (JsonElement e : arr) {
+            for (int i = 0; i < arr.size(); i++) {
+                JsonElement e = arr.get(i);
                 if (!e.isJsonObject()) continue;
-                mails.add(GSON.fromJson(e, Mail.class));
+                try {
+                    Mail mail = GSON.fromJson(e, Mail.class);
+                    if (!normalizeLoadedMail(mail)) {
+                        LOGGER.warn("[yzt_super] mail.json 第 {} 条记录无效，已跳过", i + 1);
+                        continue;
+                    }
+                    if (byId(mail.id) != null) mail.id = null;
+                    add(mail);
+                } catch (RuntimeException ex) {
+                    LOGGER.warn("[yzt_super] mail.json 第 {} 条记录无法读取，已跳过：{}", i + 1, ex.toString());
+                }
             }
         }
         pruneExpired(System.currentTimeMillis());
+    }
+
+    /** 兼容历史大小写差异，并隔离字段缺失或损坏的单条记录。 */
+    private static boolean normalizeLoadedMail(Mail mail) {
+        if (mail == null || mail.from == null || mail.from.isBlank() || mail.text == null) return false;
+        mail.from = normalizeName(mail.from);
+        if (mail.isPublic) {
+            mail.to = "";
+        } else {
+            if (mail.to == null || mail.to.isBlank()) return false;
+            mail.to = normalizeName(mail.to);
+        }
+        return true;
     }
 
     public void save() throws IOException {
@@ -109,8 +137,9 @@ public final class MailStore {
     }
 
     public List<Mail> inboxFor(String nameLower) {
+        String recipient = normalizeName(nameLower);
         return mails.stream()
-                .filter(m -> !m.isPublic && nameLower.equals(m.to))
+                .filter(m -> !m.isPublic && recipient.equals(normalizeName(m.to)))
                 .sorted((a, b) -> Long.compare(b.createdAt, a.createdAt))
                 .toList();
     }
@@ -123,8 +152,9 @@ public final class MailStore {
     }
 
     public int unreadFor(String nameLower) {
+        String recipient = normalizeName(nameLower);
         int n = 0;
-        for (Mail m : mails) if (!m.isPublic && nameLower.equals(m.to) && m.readAt == 0) n++;
+        for (Mail m : mails) if (!m.isPublic && recipient.equals(normalizeName(m.to)) && m.readAt == 0) n++;
         return n;
     }
 
@@ -134,6 +164,10 @@ public final class MailStore {
     }
 
     public int size() { return mails.size(); }
+
+    private static String normalizeName(String name) {
+        return name == null ? "" : name.toLowerCase(Locale.ROOT);
+    }
 
     // ---- 纯逻辑 ----
 

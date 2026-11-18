@@ -1,6 +1,6 @@
 # 野粽乡超级工具箱（yzt_super）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前产物：`build/libs/yzt_super-1.3.3.jar`。
+用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前产物：`build/libs/yzt_super-1.3.4.jar`。
 
 ## 1. 迁移前备份
 
@@ -20,7 +20,7 @@ export PATH="$HOME/.gradle/wrapper/dists/gradle-8.14.4-bin/*/gradle-8.14.4/bin:$
 gradle build --no-daemon --console=plain -Dfg.check.certs=false
 ```
 
-产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.3.3.jar`。纯逻辑自测：
+产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.3.4.jar`。纯逻辑自测：
 
 ```bash
 gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
