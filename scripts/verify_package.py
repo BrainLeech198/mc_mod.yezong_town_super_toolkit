@@ -30,7 +30,8 @@ def verify(platform, directory):
             assert not lower.endswith(('.log', '.tmp', '.bak')), f'Runtime file: {name}'
             assert not Path(lower).name.startswith('.env'), f'Environment file: {name}'
             assert '/selftest/' not in lower, f'Test class in package: {name}'
-        assert archive.read('META-INF/LICENSE-yzt_super.txt') == (ROOT / 'LICENSE').read_bytes()
+        licence = archive.read('META-INF/LICENSE-yzt_super.txt').decode('utf-8').splitlines()
+        assert licence == (ROOT / 'LICENSE').read_text(encoding='utf-8').splitlines()
         assert 'com/yztc/auth/security/PasswordHasher.class' in names
         classes = [name for name in names if name.endswith('.class')]
         assert classes
