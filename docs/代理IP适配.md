@@ -2,7 +2,7 @@
 
 ## 默认解析行为
 
-- `ipResolution=auto`（默认）：发布 Forge `ClientIpResolveEvent`；没有服务端适配 mod 提供地址时，使用当前连接地址。
+- `ipResolution=auto`（默认）：在当前加载器同步查询 `ClientIpResolveEvent`；没有服务端适配器提供经验证的地址时，使用当前连接地址。
 - `ipResolution=remote`：不发布事件，强制使用连接地址。
 - `ipResolution=header`：兼容旧配置，行为等同 `auto`。`forwardedHeaderName` 也只是兼容项；Minecraft TCP 连接不是 HTTP 请求，不存在通用的 `X-Forwarded-For` 读取接口。
 
@@ -10,7 +10,7 @@
 
 ## 适配器契约
 
-代理适配 mod 在 Forge 全局事件总线上监听 `ClientIpResolveEvent`，从自身支持的代理协议中解析并验证来源，然后调用 `setClientAddress(InetAddress)`。事件在服务器线程同步触发；先设置有效地址的监听器优先。没有地址时不设置，认证 mod 自动回退到连接地址。
+代理适配 mod 在 Forge 全局事件总线上监听 `ClientIpResolveEvent`，从自身支持的代理协议中解析并验证来源，然后调用 `setClientAddress(InetAddress)`。事件在服务器线程同步触发；先设置有效地址的监听器优先。没有地址时不设置，认证 mod 自动回退到连接地址。适配器须自行处理协议、I/O 等内部异常。监听器向外抛出的异常会中断本次调用，可能使玩家无法进服。
 
 ```java
 @SubscribeEvent(priority = EventPriority.HIGH)
@@ -22,6 +22,10 @@ public static void resolveClientAddress(ClientIpResolveEvent event) {
 ```
 
 `resolveAndVerify` 是适配器自己的协议实现，不属于本 mod API。适配器不可直接信任可由客户端伪造的主机名、聊天内容或普通文本字段。公网部署还应限制后端端口只能被受信任代理访问。
+
+## Fabric 1.20.1 适配器
+
+仅在 Fabric 服务端用 `com.yztc.auth.api.ClientIpResolveEvent.EVENT.register(player -> ...)` 注册同步回调。返回经适配器验证的 `InetAddress`；暂无有效地址时返回 `null` 让后续提供方处理。适配器内部失败时也须明确处理，不向回调外抛出异常。Forge 保留原事件类和 `setClientAddress` 方法。两个加载器在 `remote` 模式下直接取连接地址，在其他模式没有适配结果时也使用连接地址。
 
 ## 为什么使用适配器
 
