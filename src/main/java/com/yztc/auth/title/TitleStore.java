@@ -1,19 +1,14 @@
 package com.yztc.auth.title;
 
+import com.yztc.auth.data.JsonStoreFile;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -24,40 +19,39 @@ import java.util.Set;
 public final class TitleStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    private final Path file;
+    private final JsonStoreFile file;
     private final Map<String, TitleDef> definitions = new LinkedHashMap<>();
     private final Map<String, TitleRecord> players = new HashMap<>();
 
     public TitleStore(Path file) {
-        this.file = file;
+        this.file = new JsonStoreFile(file);
     }
 
     public void load() throws IOException {
-        definitions.clear();
-        players.clear();
-        if (!Files.exists(file)) return;
-        String raw = Files.readString(file, StandardCharsets.UTF_8);
-        if (raw.isBlank()) return;
-        JsonObject root;
-        try {
-            root = JsonParser.parseString(raw).getAsJsonObject();
-        } catch (RuntimeException e) {
-            throw new IOException("titles.json 解析失败: " + e.getMessage(), e);
-        }
-        if (root.has("definitions") && root.get("definitions").isJsonArray()) {
+        file.load(this::decode);
+    }
+
+    private void decode(JsonObject root) {
+        Map<String, TitleDef> defs = new LinkedHashMap<>();
+        Map<String, TitleRecord> records = new HashMap<>();
+        if (root.has("definitions")) {
             for (JsonElement e : root.getAsJsonArray("definitions")) {
                 if (!e.isJsonObject()) continue;
                 TitleDef d = GSON.fromJson(e, TitleDef.class);
-                if (d != null && d.id != null) definitions.put(d.id, d);
+                if (d != null && d.id != null) defs.put(d.id, d);
             }
         }
-        if (root.has("players") && root.get("players").isJsonObject()) {
+        if (root.has("players")) {
             for (Map.Entry<String, JsonElement> en : root.getAsJsonObject("players").entrySet()) {
                 if (!en.getValue().isJsonObject()) continue;
                 TitleRecord r = GSON.fromJson(en.getValue(), TitleRecord.class);
-                if (r != null) players.put(en.getKey(), r);
+                if (r != null) records.put(en.getKey(), r);
             }
         }
+        definitions.clear();
+        definitions.putAll(defs);
+        players.clear();
+        players.putAll(records);
     }
 
     public void save() throws IOException {
@@ -72,20 +66,7 @@ public final class TitleStore {
         }
         root.add("players", pl);
 
-        Path parent = file.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, GSON.toJson(root), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        if (Files.exists(file)) {
-            Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
-                    StandardCopyOption.REPLACE_EXISTING);
-        }
-        try {
-            Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-        }
+        file.save(GSON, root);
     }
 
     public Map<String, TitleDef> definitions() { return definitions; }
@@ -113,6 +94,26 @@ public final class TitleStore {
         if (r == null) return;
         r.owned.remove(titleId);
         if (titleId.equals(r.selected)) r.selected = "";
+    }
+
+    /** Preserve both ownership order and absence of a player record when storage is unavailable. */
+    public void setOwnershipAndSave(String playerLower, String titleId, boolean owned) throws IOException {
+        TitleRecord previous = players.get(playerLower);
+        if (previous != null) {
+            TitleRecord updated = new TitleRecord();
+            updated.owned.addAll(previous.owned);
+            updated.selected = previous.selected;
+            players.put(playerLower, updated);
+        }
+        if (owned) give(playerLower, titleId);
+        else take(playerLower, titleId);
+        try {
+            save();
+        } catch (IOException ex) {
+            if (previous == null) players.remove(playerLower);
+            else players.put(playerLower, previous);
+            throw ex;
+        }
     }
 
     public void select(String playerLower, String titleId) {

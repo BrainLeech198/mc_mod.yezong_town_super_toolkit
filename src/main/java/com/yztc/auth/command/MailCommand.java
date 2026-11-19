@@ -202,9 +202,10 @@ public final class MailCommand {
         if (!MailStore.canDelete(m, name, Permissions.isAdmin(p))) {
             p.sendSystemMessage(Lang.msg("mail_del_denied")); return 0;
         }
-        if (!store.remove(id)) { p.sendSystemMessage(Lang.msg("mail_del_none")); return 0; }
-        if (!save(p, store)) {
-            store.add(m);
+        try {
+            if (!store.removeAndSave(id)) { p.sendSystemMessage(Lang.msg("mail_del_none")); return 0; }
+        } catch (IOException e) {
+            p.sendSystemMessage(Lang.msg("err_mail_save", e.getMessage()));
             return 0;
         }
         p.sendSystemMessage(Lang.msg("mail_del_ok"));

@@ -70,16 +70,13 @@ public final class RiskPanel {
 
     private static void markHandled(ServerPlayer v, String id) {
         RiskStore store = StoreHolder.risk();
-        if (store != null) {
-            store.markHandled(id, v.getGameProfile().getName().toLowerCase(Locale.ROOT),
-                    System.currentTimeMillis());
-            try {
-                store.save();
-            } catch (IOException e) {
-                v.sendSystemMessage(Lang.msg("err_save", e.getMessage()));
-            }
+        try {
+            boolean changed = store != null && store.markHandledAndSave(id,
+                    v.getGameProfile().getName().toLowerCase(Locale.ROOT), System.currentTimeMillis());
+            v.sendSystemMessage(Lang.msg(changed ? "risk_done_ok" : "risk_done_none"));
+        } catch (IOException e) {
+            v.sendSystemMessage(Lang.msg("err_save", e.getMessage()));
         }
-        v.sendSystemMessage(Lang.msg("risk_done_ok"));
         open(v);
     }
 

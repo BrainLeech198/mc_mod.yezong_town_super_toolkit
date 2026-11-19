@@ -98,8 +98,7 @@ public final class TitleCommand {
         String previous = store.selectedOf(name);
         store.select(name, id);
         if (!save(p, store)) {
-            if (previous.isBlank()) store.clearSelected(name);
-            else store.select(name, previous);
+            store.select(name, previous);
             return 0;
         }
         p.sendSystemMessage(Lang.msg("title_set_ok", store.def(id) == null ? id : store.def(id).text));
@@ -139,8 +138,12 @@ public final class TitleCommand {
             src.sendFailure(Lang.msg("title_already_owned"));
             return 0;
         }
-        store.give(target, id);
-        if (!save(src, store)) { store.take(target, id); return 0; }
+        try {
+            store.setOwnershipAndSave(target, id, true);
+        } catch (IOException ex) {
+            src.sendFailure(Lang.msg("err_save", ex.getMessage()));
+            return 0;
+        }
         src.sendSuccess(() -> Lang.msg("title_gave", player, id), true);
         refreshIfOnline(src, target);
         return 1;
@@ -154,11 +157,10 @@ public final class TitleCommand {
             src.sendFailure(Lang.msg("title_not_owned"));
             return 0;
         }
-        String previousSelected = store.selectedOf(target);
-        store.take(target, id);
-        if (!save(src, store)) {
-            store.give(target, id);
-            if (id.equals(previousSelected)) store.select(target, previousSelected);
+        try {
+            store.setOwnershipAndSave(target, id, false);
+        } catch (IOException ex) {
+            src.sendFailure(Lang.msg("err_save", ex.getMessage()));
             return 0;
         }
         src.sendSuccess(() -> Lang.msg("title_taken", player, id), true);

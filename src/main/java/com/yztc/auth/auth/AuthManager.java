@@ -21,7 +21,6 @@ import com.yztc.auth.ui.WelcomeSync;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
-import net.minecraftforge.common.MinecraftForge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,11 +148,18 @@ public final class AuthManager {
     public boolean isAuthenticated(ServerPlayer p) { return authenticated.contains(p.getUUID()); }
     public boolean isPending(ServerPlayer p) { return PendingState.ALL.containsKey(p.getUUID()); }
 
+    public boolean closingSession(ServerPlayer p) {
+        PendingState st = PendingState.ALL.get(p.getUUID());
+        return p.hasDisconnected() || (st != null && (st.player != p || st.disconnecting));
+    }
+
     public void onJoin(ServerPlayer p) {
+        clearInputs(p);
         authenticated.remove(p.getUUID());
         PendingState st = new PendingState(p);
         PendingState.ALL.put(p.getUUID(), st);
         if (throttle.blocked(p.getUUID(), System.currentTimeMillis())) {
+            st.disconnecting = true;
             p.connection.disconnect(Lang.msg("logout_ok"));
             return;
         }
@@ -184,7 +190,14 @@ public final class AuthManager {
         }
     }
 
+    private static void clearInputs(ServerPlayer p) {
+        Defer.forget(p);
+        com.yztc.auth.ui.UiSession.forget(p.getUUID());
+        com.yztc.auth.ui.InputPrompt.forget(p.getUUID());
+    }
+
     public void onLeave(ServerPlayer p) {
+        clearInputs(p);
         PendingState.ALL.remove(p.getUUID());
         authenticated.remove(p.getUUID());
         lastActivityMs.remove(p.getUUID());
@@ -224,12 +237,12 @@ public final class AuthManager {
 
     public void onTick(ServerPlayer p) {
         PendingState st = PendingState.ALL.get(p.getUUID());
-        if (st == null) return;
+        if (st == null || st.disconnecting) return;
         long now = System.currentTimeMillis();
         long limit = AuthConfig.loginTimeoutSeconds() * 1000L;
         if (now - st.joinedAt > limit) {
+            st.disconnecting = true;
             p.connection.disconnect(Lang.msg("timeout"));
-            PendingState.ALL.remove(p.getUUID());
             return;
         }
         if (flashDue(now, st.lastTitleMs, TITLE_FLASH_INTERVAL_MS)) {
@@ -239,7 +252,7 @@ public final class AuthManager {
         }
     }
 
-    public enum LoginResult { OK, BAD, LOCKED, RATE_LIMITED, NO_ACCOUNT }
+    public enum LoginResult { OK, BAD, LOCKED, RATE_LIMITED, NO_ACCOUNT, SAVE_FAILED }
     public enum RegisterResult { OK, INVALID_PASSWORD, ALREADY_REGISTERED, RATE_LIMITED, SAVE_FAILED }
     public enum PasswordChangeResult { CHANGED, INVALID_NEW_PASSWORD, NO_ACCOUNT, BAD_OLD_PASSWORD, SAVE_FAILED }
 
@@ -251,64 +264,59 @@ public final class AuthManager {
             Sounds.fail(p);
             return LoginResult.RATE_LIMITED;
         }
-        Account a = store.get(name);
-        if (a == null) {
-            audit(name, ip, "LOGIN_NO_ACCOUNT");
+        Account previous = store.get(name);
+        LoginResult result;
+        try {
+            result = verifyAndSaveLogin(store, name, password, ip, System.currentTimeMillis());
+        } catch (IOException ex) {
+            LOGGER.error("[yzt_super] 登录状态未能写入 users.json", ex);
+            result = LoginResult.SAVE_FAILED;
+        }
+        if (result != LoginResult.OK) {
+            audit(name, ip, result == LoginResult.BAD ? "LOGIN_FAIL" : "LOGIN_" + result.name());
             Sounds.fail(p);
-            return LoginResult.NO_ACCOUNT;
+            return result;
         }
-
-        long now = System.currentTimeMillis();
-        if (a.lockedUntil > now) {
-            audit(name, ip, "LOGIN_LOCKED");
-            Sounds.fail(p);
-            return LoginResult.LOCKED;
-        }
-
-        boolean ok;
-        if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
-            ok = PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(password.toCharArray()), a.hash);
-        } else if (PasswordHasher.ALGO_PBKDF2.equals(a.algo)) {
-            ok = PasswordHasher.verifyPbkdf2Encoded(password.toCharArray(), a.iterations, a.salt, a.hash);
-        } else {
-            ok = false;
-        }
-
-        if (!ok) {
-            a.failedAttempts++;
-            if (a.failedAttempts >= AuthConfig.maxLoginAttempts()) {
-                a.lockedUntil = now + AuthConfig.lockoutSeconds() * 1000L;
-                a.failedAttempts = 0;
-            }
-            persist();
-            audit(name, ip, "LOGIN_FAIL");
-            Sounds.fail(p);
-            return LoginResult.BAD;
-        }
-
-        // 成功：必要时升级 legacy → PBKDF2
-        if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
-            PasswordHasher.Hashed h = PasswordHasher.pbkdf2(password.toCharArray(), AuthConfig.pbkdf2Iterations(), 16);
-            a.algo = PasswordHasher.ALGO_PBKDF2;
-            a.iterations = h.iterations();
-            a.salt = ENC.encodeToString(h.salt());
-            a.hash = ENC.encodeToString(h.hash());
-            a.migratedAt = null;
-            LOGGER.info("[yzt_super] {} UPGRADED legacy->pbkdf2", name);
-        }
-        boolean newIp = ipChanged(a.lastIp, ip); // C1：首次登录（lastIp 为空）不提醒
-        a.failedAttempts = 0;
-        a.lockedUntil = 0;
-        a.lastLogin = now;
-        a.lastIp = ip;
-        persist();
-
-        if (newIp) p.sendSystemMessage(Lang.msg("login_new_ip", ip));
+        if (previous.isLegacy()) LOGGER.info("[yzt_super] {} UPGRADED legacy->pbkdf2", name);
+        if (ipChanged(previous.lastIp, ip)) p.sendSystemMessage(Lang.msg("login_new_ip", ip));
         audit(name, ip, "LOGIN_OK");
         notifyAdmins(p, name, ip);
-
         completeAuth(p);
         limiter.reset(ip);
+        return LoginResult.OK;
+    }
+
+    /** Commit the account transition before the player session or its observers see success. */
+    public static LoginResult verifyAndSaveLogin(AccountStore store, String name, String password, String ip, long now)
+            throws IOException {
+        if (store.loadFailed()) return LoginResult.SAVE_FAILED;
+        Account current = store.get(name);
+        if (current == null) return LoginResult.NO_ACCOUNT;
+        if (current.lockedUntil > now) return LoginResult.LOCKED;
+
+        Account updated = current.copy();
+        if (!verifyPassword(current, password)) {
+            updated.failedAttempts++;
+            if (updated.failedAttempts >= AuthConfig.maxLoginAttempts()) {
+                updated.lockedUntil = now + AuthConfig.lockoutSeconds() * 1000L;
+                updated.failedAttempts = 0;
+            }
+            store.putAndSave(name, updated);
+            return LoginResult.BAD;
+        }
+        if (current.isLegacy()) {
+            PasswordHasher.Hashed h = PasswordHasher.pbkdf2(password.toCharArray(), AuthConfig.pbkdf2Iterations(), 16);
+            updated.algo = PasswordHasher.ALGO_PBKDF2;
+            updated.iterations = h.iterations();
+            updated.salt = ENC.encodeToString(h.salt());
+            updated.hash = ENC.encodeToString(h.hash());
+            updated.migratedAt = null;
+        }
+        updated.failedAttempts = 0;
+        updated.lockedUntil = 0;
+        updated.lastLogin = now;
+        updated.lastIp = ip;
+        store.putAndSave(name, updated);
         return LoginResult.OK;
     }
 
@@ -327,9 +335,10 @@ public final class AuthManager {
         a.hash = ENC.encodeToString(h.hash());
         a.registeredAt = System.currentTimeMillis();
         a.lastLogin = a.registeredAt;
-        store.put(name, a);
-        if (!persist()) {
-            store.remove(name);
+        try {
+            store.putAndSave(name, a);
+        } catch (IOException ex) {
+            LOGGER.error("[yzt_super] 注册未能写入 users.json", ex);
             Sounds.fail(p);
             return RegisterResult.SAVE_FAILED;
         }
@@ -348,15 +357,20 @@ public final class AuthManager {
         PendingState.ALL.put(p.getUUID(), st);
         st.gatePassed = true; // 已过闸者登出后不必再过闸
         String ip = resolveIp(p);
+        p.closeContainer();
+        clearInputs(p);
         if (staysConnectedOnLogout(mode)) {
+            LockdownSync.lock(p);
             sendLoginPrompt(p);
             // B4：登出回到未登录态，须重新从他人 Tab 隐藏（与进服时一致）
             TabHider.hideFromOthers(p);
             TabHider.hidePendingFrom(p);
         } else if ("disconnect-throttle".equals(mode)) {
+            st.disconnecting = true;
             throttle.mark(p.getUUID(), System.currentTimeMillis(), AuthConfig.logoutThrottleSeconds());
             p.connection.disconnect(Lang.msg("logout_ok"));
         } else {
+            st.disconnecting = true;
             p.connection.disconnect(Lang.msg("logout_ok"));
         }
         limiter.reset(ip);
@@ -395,7 +409,7 @@ public final class AuthManager {
     public Account accountOf(String nameLower) { return store.get(nameLower); }
 
     /** 校验账户密码（PBKDF2 或遗留 SHA-256）。 */
-    private boolean verifyPassword(Account a, String pw) {
+    private static boolean verifyPassword(Account a, String pw) {
         if (pw == null) return false;
         if (PasswordHasher.ALGO_LEGACY.equals(a.algo)) {
             return PasswordHasher.verifyLegacy(PasswordHasher.legacySha256Hex(pw.toCharArray()), a.hash);
@@ -526,9 +540,8 @@ public final class AuthManager {
         if ("remote".equalsIgnoreCase(mode)) return remote;
         // auto is the safe default. "header" remains an alias for older configs, but
         // address forwarding comes from a trusted Forge integration, not an HTTP header.
-        ClientIpResolveEvent event = new ClientIpResolveEvent(p);
-        MinecraftForge.EVENT_BUS.post(event);
-        return event.getClientAddress() == null ? remote : event.getClientAddress().getHostAddress();
+        java.net.InetAddress address = ClientIpResolveEvent.resolve(p);
+        return address == null ? remote : address.getHostAddress();
     }
 
     private boolean persist() {

@@ -1,7 +1,7 @@
 package com.yztc.auth.perm;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.fml.ModList;
+import com.yztc.auth.ui.ModInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +50,7 @@ public final class Permissions {
     private static synchronized boolean initLuckPerms() {
         if (lpChecked) return lpPresent;
         lpChecked = true;
-        if (!ModList.get().isLoaded("luckperms")) return lpPresent = false;
+        if (!ModInfo.isLoaded("luckperms")) return lpPresent = false;
         try {
             Class<?> provider = Class.forName("net.luckperms.api.LuckPermsProvider");
             Class<?> userManagerCls = Class.forName("net.luckperms.api.model.user.UserManager");

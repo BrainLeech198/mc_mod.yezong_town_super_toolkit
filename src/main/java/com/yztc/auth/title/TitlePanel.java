@@ -77,8 +77,7 @@ public final class TitlePanel {
         try {
             store.save();
         } catch (IOException e) {
-            if (previous.isBlank()) store.clearSelected(name);
-            else store.select(name, previous);
+            store.select(name, previous);
             v.sendSystemMessage(Lang.msg("err_save", e.getMessage()));
             return;
         }

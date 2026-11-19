@@ -5,6 +5,7 @@ import com.yztc.auth.data.AccountStore;
 import com.yztc.auth.lang.ServerLang;
 import com.yztc.auth.security.PasswordHasher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -27,6 +28,19 @@ public final class MigrateService {
     }
 
     private MigrateService() {}
+
+    public static Report migrateAndSave(Map<String, String> legacy, AccountStore target, long now) throws IOException {
+        Report report = migrate(legacy, target, false, now);
+        try {
+            target.save();
+        } catch (IOException ex) {
+            for (EntryResult entry : report.details()) {
+                if (entry.status() == Status.IMPORTED) target.remove(entry.name());
+            }
+            throw ex;
+        }
+        return report;
+    }
 
     public static Report migrate(Map<String, String> legacy, AccountStore target, boolean dryRun, long now) {
         int imported = 0, skipped = 0, failed = 0;

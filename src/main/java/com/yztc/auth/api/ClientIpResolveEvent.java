@@ -20,6 +20,12 @@ public final class ClientIpResolveEvent extends Event {
         this.player = player;
     }
 
+    public static InetAddress resolve(ServerPlayer player) {
+        ClientIpResolveEvent event = new ClientIpResolveEvent(player);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(event);
+        return event.getClientAddress();
+    }
+
     public ServerPlayer getPlayer() {
         return player;
     }

@@ -169,7 +169,7 @@ public final class AnvilInput {
             ItemStack submit = new ItemStack(Items.LIME_DYE);
             submit.setHoverName(Lang.msg("anvil_submit_hint"));
             resultSlots.setItem(0, submit);
-            setMaximumCost(0);
+            setData(0, 0);
         }
 
         @Override
