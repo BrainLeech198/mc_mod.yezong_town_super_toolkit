@@ -14,6 +14,8 @@
 
 ## 2. 构建
 
+本节对应 Minecraft 1.20.1 / Forge 47.4.0 / Java 17。当前部署使用下述 Forge JAR。Fabric 和 NeoForge 处于方案评审阶段；验证时使用独立测试服和世界备份，按组合记录启动、原版客户端和重启读回结果。[首页兼容矩阵](README.md#适用范围) · [平台审计与验收步骤](docs/兼容性审计.md)
+
 需要 Java 17 和已安装的 Gradle；维护环境使用 Gradle 8.14.4。当前仓库未提交 Wrapper，且项目配置有原机器的 JDK 路径，请先按 [Codex 协作指南](docs/Codex协作指南.md#jdk-路径提示) 配置本机环境。以下命令在克隆后的仓库根目录执行：
 
 ```bash
