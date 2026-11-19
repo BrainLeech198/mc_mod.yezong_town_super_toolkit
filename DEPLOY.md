@@ -14,18 +14,19 @@
 
 ## 2. 构建
 
+需要 Java 17 和已安装的 Gradle；维护环境使用 Gradle 8.14.4。当前仓库未提交 Wrapper，且项目配置有原机器的 JDK 路径，请先按 [Codex 协作指南](docs/Codex协作指南.md#jdk-路径提示) 配置本机环境。以下命令在克隆后的仓库根目录执行：
+
 ```bash
-cd /d/File/claude/mc_yzt/yztauth
-export PATH="$HOME/.gradle/wrapper/dists/gradle-8.14.4-bin/*/gradle-8.14.4/bin:$PATH"
-gradle build --no-daemon --console=plain -Dfg.check.certs=false
+gradle build --no-daemon --console=plain
 ```
 
 产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.3.4.jar`。纯逻辑自测：
 
 ```bash
-gradle selfTest --no-daemon --console=plain -Dfg.check.certs=false
-# 期望末行：通过=1343 失败=0
+gradle selfTest --no-daemon --console=plain
 ```
+
+判断自测以本次实际结果和退出状态为准，历史数量不保证与新代码一致。对外发行还应按 [发布操作规范](docs/发布规范.md) 核对源提交、重映射、元数据、哈希与附件；本地构建不等于已上传 GitHub Release。
 
 ## 3. 替换
 

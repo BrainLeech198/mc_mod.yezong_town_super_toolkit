@@ -75,6 +75,9 @@ gradle build --no-daemon --console=plain
 
 ## 文档导航
 
+- [当前交接状态与下一步](docs/交接说明.md)
+- [提交与多人协作规范](CONTRIBUTING.md)
+- [发布操作规范与模板](docs/发布规范.md)
 - [部署、命令、配置与迁移](DEPLOY.md)
 - [项目文档入口与维护规范](docs/README.md)
 - [项目结构与主要调用链](docs/项目结构.md)
@@ -89,7 +92,7 @@ gradle build --no-daemon --console=plain
 
 欢迎提交可复现的问题报告和改进建议。报告问题时请写明 Minecraft/Forge 版本、操作步骤、预期结果与实际结果；分享日志前请删除 IP、账号数据、令牌等隐私信息。
 
-新协作者使用 Codex 的环境准备、分支、检查和提交流程见 [Codex 协作指南](docs/Codex协作指南.md)。Mod 版本与兼容性变更按 [版本管理规范](docs/版本管理规范.md) 维护。
+新协作者先读 [交接说明](docs/交接说明.md) 和 [提交与协作规范](CONTRIBUTING.md)，直接在原仓库工作分支协作，无需另建仓库。Codex 的环境准备见 [Codex 协作指南](docs/Codex协作指南.md)，仓库内 AI 工作规则见 [AGENTS.md](AGENTS.md)。Mod 版本按 [版本管理规范](docs/版本管理规范.md) 维护，发行按 [发布规范](docs/发布规范.md) 执行。
 
 ## 许可证
 
