@@ -1,6 +1,6 @@
 # Yezong Town Super Toolkit
 
-[简体中文](README.md) · [Stable downloads](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases/latest) · [Report an issue](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/issues)
+[简体中文](README.md) · [Stable downloads](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases/latest) · [Installation guide](docs/installation.en.md) · [Report an issue](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/issues)
 
 Server-side account login, private mail, player utilities and administration for Minecraft 1.20.1. Forge and Fabric use separate packages. Players connect with a vanilla 1.20.1 client; no client-side installation is required.
 
@@ -33,6 +33,8 @@ NeoForge and other Minecraft versions are not currently delivered. The stable re
 For English server messages, set `language = "en_us"` in the `[feature]` section of that TOML file. Data is stored under `config/yzt_super/`; back it up before updating. Existing SAuth installations must follow the [migration instructions](DEPLOY.md). New installations do not need a migration command.
 
 Passwords are hashed with PBKDF2; legacy migrated hashes upgrade after a successful login. Password entry is visible in the local anvil screen. Offline-mode connections are not encrypted, so choose an appropriate network and account protection setup for your server. Do not upload real account data with bug reports.
+
+The server stores readable email, IP, mail and position data. Default login notifications show names and IPs to administrators. See [data visibility, retention and backups](PRIVACY.md), and the [complete English installation/upgrade guide](docs/installation.en.md).
 
 ## Build and contribute
 

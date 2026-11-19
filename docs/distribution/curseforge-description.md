@@ -20,6 +20,8 @@ Start the server, connect with a vanilla 1.20.1 client, follow the registration/
 
 Password text is visible in the local input screen. Offline-mode connections are not encrypted. Existing login mods may conflict with `/login` or `/register`; follow the migration documentation before replacing them. Other Minecraft versions and NeoForge are not currently supported.
 
+Account email, last login IP, mail and logout positions are stored as readable server-side data. Login notifications show player names and IPs to administrators by default. The mod itself has no telemetry or automatic remote data upload; server operators control their local data and backups. Deleting an account does not erase every other record or backup.
+
 ## Development disclosure
 
 The source code was primarily generated using AI tools, including Codex. Documentation, translations, project text and the vector toolbox icon also involved AI. The icon is an illustration, not an in-game item or screenshot. No AI service is required to run the mod. Human maintainers direct requirements, review changes and maintain the project; verification details and limitations are documented separately.
@@ -35,5 +37,7 @@ Forge 与 Fabric 分别下载对应文件，每次只安装一个。两端运行
 - [Source and development provenance](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit)
 - [Issue tracker](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/issues)
 - [Deployment and migration documentation](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/blob/main/DEPLOY.md)
+- [English installation guide](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/blob/main/docs/installation.en.md)
+- [Data and privacy](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/blob/main/PRIVACY.md)
 
 All Rights Reserved. Third-party dependencies retain their own licences. Public source access does not grant unrestricted redistribution rights.

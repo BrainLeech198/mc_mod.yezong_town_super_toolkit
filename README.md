@@ -45,7 +45,7 @@
 
 ### 获取 Mod
 
-发行包及 SHA-256 校验文件从仓库的 [Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases) 获取。按服务端加载器选择 `yzt_super-1.4.0-mc1.20.1-forge.jar` 或 `yzt_super-1.4.0-mc1.20.1-fabric.jar`，每次只安装其中一个；Fabric 必需依赖见上表。也可按下面步骤从源码构建。
+发行包及 SHA-256 校验文件从仓库的 [Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases) 获取。按服务端加载器选择 `yzt_super-1.4.0-mc1.20.1-forge.jar` 或 `yzt_super-1.4.0-mc1.20.1-fabric.jar`，每次只安装其中一个；Fabric 必需依赖见上表。开发者构建命令见[部署说明](DEPLOY.md#2-构建)。
 
 ### 快速安装
 
@@ -68,11 +68,14 @@
 - 账号数据保存在服务端 `config/yzt_super/users.json`；新密码以 PBKDF2 哈希保存，不保存明文密码。迁移来的旧哈希会在首次成功登录后升级。
 - 留言、位置与风险记录分别写入服务端配置目录下的 JSON 文件；升级或迁移前应备份 `config/`。
 - 审计记录用于记录认证结果，不应包含密码。危险操作记录也不保存明文密码。
+- 邮箱、IP、留言及位置是服务器本地可读数据；默认的登录通知会向在线管理员显示玩家名和 IP。存储、可见性与保留方式见[数据与隐私说明](PRIVACY.md)。
 - 离线模式的 Minecraft 连接没有传输加密；这不是本 Mod 能解决的问题。公网部署请理解此限制，并采用符合服务器需求的网络与账号保护方案。
 
 ## 文档导航
 
 - [部署、命令、配置与迁移](DEPLOY.md)
+- [English installation guide](docs/installation.en.md)
+- [数据与隐私](PRIVACY.md)
 - [代理客户端地址适配](docs/代理IP适配.md)
 - [更新记录](CHANGELOG.md)
 - [问题记录](docs/issues/)
