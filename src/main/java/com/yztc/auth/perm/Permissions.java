@@ -17,7 +17,7 @@ public final class Permissions {
 
     private static boolean lpChecked = false;
     private static boolean lpPresent = false;
-    private static Method mGetProvider, mGetUserManager, mGetUser, mGetCachedData, mGetPermissionData, mCheckPermission, mAsBoolean;
+    private static Method mGetProvider, mGetUserManager, mGetUser, mGetCachedData, mGetPermissionData, mCheckPermission;
 
     private Permissions() {}
 
@@ -39,8 +39,13 @@ public final class Permissions {
             if (user == null) return null;
             Object cached = mGetCachedData.invoke(user);
             Object permData = mGetPermissionData.invoke(cached);
-            Object result = mCheckPermission.invoke(permData, node);
-            return (Boolean) mAsBoolean.invoke(result);
+            Enum<?> result = (Enum<?>) mCheckPermission.invoke(permData, node);
+            return switch (result.name()) {
+                case "TRUE" -> true;
+                case "FALSE" -> false;
+                case "UNDEFINED" -> null;
+                default -> throw new IllegalStateException("Unexpected LuckPerms Tristate: " + result.name());
+            };
         } catch (Throwable t) {
             LOGGER.warn("LuckPerms 查询失败，回退 OP 判定：{}", t.toString());
             return null;
@@ -53,21 +58,12 @@ public final class Permissions {
         if (!ModInfo.isLoaded("luckperms")) return lpPresent = false;
         try {
             Class<?> provider = Class.forName("net.luckperms.api.LuckPermsProvider");
-            Class<?> userManagerCls = Class.forName("net.luckperms.api.model.user.UserManager");
-            Class<?> userCls = Class.forName("net.luckperms.api.model.user.User");
-            Class<?> cachedCls = Class.forName("net.luckperms.api.cacheddata.CachedPermissionData");
-            Class<?> resultCls = Class.forName("net.luckperms.api.model.data.Tristate");
-            // checkPermission 返回 Tristate，asBoolean() 才是最终判定
-            Class<?> cachedDataCls = Class.forName("net.luckperms.api.cacheddata.CachedData");
-
             mGetProvider = provider.getMethod("get");
-            mGetUserManager = provider.getMethod("getUserManager");
-            mGetUser = userManagerCls.getMethod("getUser", UUID.class);
-
-            mGetCachedData = userCls.getMethod("getCachedData");
-            mGetPermissionData = cachedDataCls.getMethod("getPermissionData");
-            mCheckPermission = cachedCls.getMethod("checkPermission", String.class);
-            mAsBoolean = resultCls.getMethod("asBoolean");
+            mGetUserManager = mGetProvider.getReturnType().getMethod("getUserManager");
+            mGetUser = mGetUserManager.getReturnType().getMethod("getUser", UUID.class);
+            mGetCachedData = mGetUser.getReturnType().getMethod("getCachedData");
+            mGetPermissionData = mGetCachedData.getReturnType().getMethod("getPermissionData");
+            mCheckPermission = mGetPermissionData.getReturnType().getMethod("checkPermission", String.class);
             lpPresent = true;
         } catch (Throwable t) {
             LOGGER.warn("LuckPerms API 反射初始化失败，全部回退 OP 判定：{}", t.toString());
