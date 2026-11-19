@@ -6,6 +6,7 @@
 
 - 部署、命令、配置与迁移：[`DEPLOY.md`](DEPLOY.md)
 - 文档入口与维护规则：[`docs/README.md`](docs/README.md)
+- 新协作者使用 Codex：[`docs/Codex协作指南.md`](docs/Codex协作指南.md)
 - 版本规则与正式版本更新：[`版本管理规范`](docs/版本管理规范.md) / [`CHANGELOG.md`](CHANGELOG.md)
 - 模块边界与调用链：[`docs/项目结构.md`](docs/项目结构.md)
 - 自测任务定义：`gradle selfTest`（执行方式和服务器部署步骤见 `DEPLOY.md`）
