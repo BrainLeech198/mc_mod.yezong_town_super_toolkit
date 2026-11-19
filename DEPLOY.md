@@ -1,6 +1,6 @@
 # 野粽乡超级工具箱（yzt_super）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前源码版本为 `1.3.4`，各平台的可用性见[兼容矩阵](README.md#适用范围)。
+用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前源码版本为 `1.4.0`，各平台的可用性见[兼容矩阵](README.md#适用范围)。
 
 ## 1. 迁移前备份
 
@@ -18,8 +18,8 @@
 
 | 游戏 / 加载器 | 构建目录与工具链 | 命令 | 产物（相对于该目录） |
 |---|---|---|---|
-| 1.20.1 / Forge 47.4.0 | 根目录，JDK 17、Gradle 8.14.4、ForgeGradle 6.0.54 | `.\gradlew.bat clean selfTest build --no-daemon` | `build/libs/yzt_super-1.3.4-mc1.20.1-forge.jar` |
-| 1.20.1 / Fabric Loader 0.20.1 | `platforms/fabric-1.20.1/`，JDK 25、Gradle 9.8.2、Loom 1.19.4 | `.\gradlew.bat clean build --no-daemon` | `build/libs/yzt_super-1.3.4-mc1.20.1-fabric.jar` |
+| 1.20.1 / Forge 47.4.0 | 根目录，JDK 17、Gradle 8.14.4、ForgeGradle 6.0.54 | `.\gradlew.bat clean selfTest build --no-daemon` | `build/libs/yzt_super-1.4.0-mc1.20.1-forge.jar` |
+| 1.20.1 / Fabric Loader 0.20.1 | `platforms/fabric-1.20.1/`，JDK 25、Gradle 9.8.2、Loom 1.19.4 | `.\gradlew.bat clean build --no-daemon` | `build/libs/yzt_super-1.4.0-mc1.20.1-fabric.jar` |
 
 两个服务端都使用 Java 17。Fabric 服务端的 `mods/` 另放 **Fabric API 0.92.12+1.20.1** 和 **Forge Config API Port 8.0.3（Fabric 版）**。配置库让两端共用同一组 TOML 键与世界级配置。Forge 版使用 Forge 自带配置系统。现有保存、迁移和备份路径见下文。每次只装一个工具箱 JAR，替换前停服并取出历史的 `yzt_super-1.3.4.jar`。[Fabric API](https://modrinth.com/mod/fabric-api) · [Forge Config API Port](https://github.com/Fuzss/forge-config-api-port/tree/1.20.1)
 

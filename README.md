@@ -36,13 +36,13 @@
 | 1.20.1 | Fabric Loader 0.20.1 + Fabric API 0.92.12+1.20.1 + Forge Config API Port 8.0.3 | 17 | 已完成运行验证（独立服、原版客户端及核心功能） |
 | 1.21.1 | NeoForge 21.1.267 | 21 | 计划支持（后续候选） |
 
-矩阵按具体组合记录状态。两端均使用游戏 Java 17，玩家可用原版客户端。正在移植的组合标为“正在适配”，只通过打包的组合标为“构建通过、待运行验证”。当前 PR 提供可自行构建的验证包，各项操作、包哈希、待实测场景与后续计划见记录。[平台验收记录](docs/平台验收.md) · [架构与候选组合](docs/兼容性审计.md) · [可信代理地址](docs/代理IP适配.md)
+矩阵按具体组合记录状态。两端均使用游戏 Java 17，玩家可用原版客户端。正在移植的组合标为“正在适配”，只通过打包的组合标为“构建通过、待运行验证”。1.4.0 将 Forge、Fabric 分别交付；各项操作、历史验证包哈希、待实测场景与后续计划见记录。[平台验收记录](docs/平台验收.md) · [架构与候选组合](docs/兼容性审计.md) · [可信代理地址](docs/代理IP适配.md)
 
 ## 安装
 
 ### 获取 Mod
 
-正式发行包发布后，可从仓库的 [Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases) 获取。若 Releases 页面尚无发行版，可按下面步骤从源码构建。
+发行包及 SHA-256 校验文件从仓库的 [Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases) 获取。按服务端加载器选择 `yzt_super-1.4.0-mc1.20.1-forge.jar` 或 `yzt_super-1.4.0-mc1.20.1-fabric.jar`，每次只安装其中一个；Fabric 必需依赖见上表。也可按下面步骤从源码构建。
 
 ### 从源码构建
 
