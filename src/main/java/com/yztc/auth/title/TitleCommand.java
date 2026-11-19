@@ -98,8 +98,7 @@ public final class TitleCommand {
         String previous = store.selectedOf(name);
         store.select(name, id);
         if (!save(p, store)) {
-            if (previous.isBlank()) store.clearSelected(name);
-            else store.select(name, previous);
+            store.select(name, previous);
             return 0;
         }
         p.sendSystemMessage(Lang.msg("title_set_ok", store.def(id) == null ? id : store.def(id).text));
@@ -139,8 +138,12 @@ public final class TitleCommand {
             src.sendFailure(Lang.msg("title_already_owned"));
             return 0;
         }
-        store.give(target, id);
-        if (!save(src, store)) { store.take(target, id); return 0; }
+        try {
+            store.setOwnershipAndSave(target, id, true);
+        } catch (IOException ex) {
+            src.sendFailure(Lang.msg("err_save", ex.getMessage()));
+            return 0;
+        }
         src.sendSuccess(() -> Lang.msg("title_gave", player, id), true);
         refreshIfOnline(src, target);
         return 1;
@@ -154,11 +157,10 @@ public final class TitleCommand {
             src.sendFailure(Lang.msg("title_not_owned"));
             return 0;
         }
-        String previousSelected = store.selectedOf(target);
-        store.take(target, id);
-        if (!save(src, store)) {
-            store.give(target, id);
-            if (id.equals(previousSelected)) store.select(target, previousSelected);
+        try {
+            store.setOwnershipAndSave(target, id, false);
+        } catch (IOException ex) {
+            src.sendFailure(Lang.msg("err_save", ex.getMessage()));
             return 0;
         }
         src.sendSuccess(() -> Lang.msg("title_taken", player, id), true);
@@ -180,6 +182,7 @@ public final class TitleCommand {
             else store.definitions().put(id, previous);
             return 0;
         }
+        refreshWearers(src, store, id);
         src.sendSuccess(() -> Lang.msg("title_defined", id), true);
         return 1;
     }
@@ -193,6 +196,7 @@ public final class TitleCommand {
             if (previous != null) store.definitions().put(id, previous);
             return 0;
         }
+        refreshWearers(src, store, id);
         src.sendSuccess(() -> Lang.msg("title_undefined", id), true);
         return 1;
     }
@@ -220,7 +224,14 @@ public final class TitleCommand {
         return out;
     }
 
-    /** give/take 目标若在线，重发其玩家信息包刷新 Tab/头顶名。 */
+    private static void refreshWearers(CommandSourceStack src, TitleStore store, String id) {
+        for (ServerPlayer player : src.getServer().getPlayerList().getPlayers()) {
+            String name = TitleService.normalizeName(player.getGameProfile().getName());
+            if (id.equals(store.selectedOf(name))) TitleEvents.refreshDisplay(player);
+        }
+    }
+
+    /** give/take 的目标在线时同步称号。 */
     private static void refreshIfOnline(CommandSourceStack src, String normalized) {
         if (src.getServer() == null) return;
         for (ServerPlayer v : src.getServer().getPlayerList().getPlayers()) {

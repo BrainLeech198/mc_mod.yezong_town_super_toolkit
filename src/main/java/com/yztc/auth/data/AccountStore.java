@@ -4,15 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,42 +15,32 @@ import java.util.Set;
 public final class AccountStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    private final Path file;
+    private final JsonStoreFile file;
     private final Map<String, Account> accounts = new LinkedHashMap<>();
     private Gate gate;
     private int version = 1;
 
     public AccountStore(Path file) {
-        this.file = file;
+        this.file = new JsonStoreFile(file);
     }
 
     public void load() throws IOException {
-        accounts.clear();
-        gate = null;
-        version = 1;
-        if (!Files.exists(file)) return;
-        String raw = Files.readString(file, StandardCharsets.UTF_8);
-        if (raw.isBlank()) return; // 空文件视为无账号
+        file.load(this::decode);
+    }
 
-        JsonObject root;
-        try {
-            root = JsonParser.parseString(raw).getAsJsonObject();
-        } catch (RuntimeException e) {
-            throw new IOException("users.json 解析失败: " + e.getMessage(), e);
-        }
-        if (root.has("version") && root.get("version").isJsonPrimitive()) {
-            version = root.get("version").getAsInt();
-        }
-        if (root.has("gate") && root.get("gate").isJsonObject()) {
-            gate = GSON.fromJson(root.get("gate"), Gate.class);
-        }
-        if (root.has("accounts") && root.get("accounts").isJsonObject()) {
-            JsonObject acc = root.getAsJsonObject("accounts");
-            for (Map.Entry<String, JsonElement> e : acc.entrySet()) {
-                if (!e.getValue().isJsonObject()) continue;
-                accounts.put(e.getKey(), GSON.fromJson(e.getValue(), Account.class));
+    private void decode(JsonObject root) {
+        Map<String, Account> loaded = new LinkedHashMap<>();
+        int loadedVersion = root.has("version") ? root.get("version").getAsInt() : 1;
+        Gate loadedGate = root.has("gate") && !root.get("gate").isJsonNull() ? GSON.fromJson(root.getAsJsonObject("gate"), Gate.class) : null;
+        if (root.has("accounts")) {
+            for (Map.Entry<String, JsonElement> e : root.getAsJsonObject("accounts").entrySet()) {
+                if (e.getValue().isJsonObject()) loaded.put(e.getKey(), GSON.fromJson(e.getValue(), Account.class));
             }
         }
+        accounts.clear();
+        accounts.putAll(loaded);
+        gate = loadedGate;
+        version = loadedVersion;
     }
 
     public void save() throws IOException {
@@ -69,19 +53,18 @@ public final class AccountStore {
         }
         root.add("accounts", acc);
 
-        Path parent = file.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, GSON.toJson(root), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        if (Files.exists(file)) {
-            Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
-                    StandardCopyOption.REPLACE_EXISTING);
-        }
+        file.save(GSON, root);
+    }
+
+    /** Commit a detached replacement, keeping the previous account (or absence) on failure. */
+    public void putAndSave(String name, Account replacement) throws IOException {
+        Account previous = accounts.put(name, replacement);
         try {
-            Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+            save();
+        } catch (IOException ex) {
+            if (previous == null) accounts.remove(name);
+            else accounts.put(name, previous);
+            throw ex;
         }
     }
 
@@ -94,5 +77,6 @@ public final class AccountStore {
     public Gate getGate() { return gate; }
     public void setGate(Gate g) { this.gate = g; }
     public void clearGate() { this.gate = null; }
-    public Path file() { return file; }
+    public Path file() { return file.path(); }
+    public boolean loadFailed() { return file.loadFailed(); }
 }

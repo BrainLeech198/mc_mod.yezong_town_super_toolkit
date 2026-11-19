@@ -232,16 +232,13 @@ public final class MailPanel {
 
     private static void delete(ServerPlayer v, String id) {
         MailStore store = StoreHolder.mail();
-        Mail removed = store == null ? null : store.byId(id);
-        if (removed == null || !store.remove(id)) {
-            v.sendSystemMessage(Lang.msg("mail_del_none"));
-            openManage(v);
-            return;
-        }
         try {
-            store.save();
+            if (store == null || !store.removeAndSave(id)) {
+                v.sendSystemMessage(Lang.msg("mail_del_none"));
+                openManage(v);
+                return;
+            }
         } catch (IOException e) {
-            store.add(removed);
             v.sendSystemMessage(Lang.msg("err_mail_save", e.getMessage()));
             openManage(v);
             return;

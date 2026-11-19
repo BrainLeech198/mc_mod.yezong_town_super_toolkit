@@ -6,6 +6,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -17,22 +19,36 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class InputPrompt {
     private InputPrompt() {}
 
-    private static final Map<String, Runnable> PENDING = new ConcurrentHashMap<>();
+    private record Prompt(UUID owner, Runnable action) {}
+
+    private static final Map<String, Prompt> PENDING = new ConcurrentHashMap<>();
     private static final AtomicInteger SEQ = new AtomicInteger();
 
     /** 注册待执行的铁砧打开动作，返回一次性令牌。 */
     public static String register(Runnable action) {
+        return register(null, action);
+    }
+
+    public static String register(UUID owner, Runnable action) {
         String token = Integer.toHexString(SEQ.incrementAndGet());
-        PENDING.put(token, action);
+        PENDING.put(token, new Prompt(owner, action));
         return token;
     }
 
     /** 触发并移除；未注册或已用过返回 false。 */
     public static boolean fire(String token) {
-        Runnable r = PENDING.remove(token);
-        if (r == null) return false;
-        r.run();
+        return fire(null, token);
+    }
+
+    public static boolean fire(UUID owner, String token) {
+        Prompt prompt = PENDING.get(token);
+        if (prompt == null || !Objects.equals(owner, prompt.owner()) || !PENDING.remove(token, prompt)) return false;
+        prompt.action().run();
         return true;
+    }
+
+    public static void forget(UUID owner) {
+        PENDING.values().removeIf(prompt -> owner.equals(prompt.owner()));
     }
 
     /**
@@ -47,7 +63,7 @@ public final class InputPrompt {
                               AnvilInput.SubmitHandler onAnvil, String cmdSuggest) {
         // 输入方式提示在聊天栏显示，先关闭可能仍打开的箱子菜单，避免两种界面同时占屏。
         p.closeContainer();
-        String token = register(() -> AnvilInput.openFlow(p, anvilTitle, anvilTitle, onAnvil, () -> {}));
+        String token = register(p.getUUID(), () -> AnvilInput.openFlow(p, anvilTitle, anvilTitle, onAnvil, () -> {}));
         Component buttons = Component.empty()
                 .append(ChatPrompt.runButton(Lang.msg("btn_anvil"), "/yzts input " + token))
                 .append(Component.literal("   "))

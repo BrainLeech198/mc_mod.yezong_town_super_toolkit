@@ -1,6 +1,6 @@
 # Codex 协作指南
 
-这份指南帮助新协作者把本仓库交给 Codex 阅读、修改、检查和提交。项目是面向 Minecraft 1.20.1 / Forge 47 的 Java 17 服务端 Mod。Codex 可以协助代码与文档工作；实际服务器行为仍需要在目标环境验收。
+这份指南帮助新协作者把本仓库交给 Codex 阅读、修改、检查和提交。项目是面向 Minecraft 1.20.1 的 Java 17 服务端 Mod，Forge 和 Fabric 各自构建。Codex 可以协助代码与文档工作；实际服务器行为仍需要在目标环境验收。
 
 ## 开始协作
 
@@ -27,28 +27,25 @@
 
 ## 本机开发环境
 
-- JDK：Java 17。用 `java -version` 和 `gradle --version` 确认 Gradle 实际使用的是 Java 17。
-- Gradle：本仓库目前没有提交 Gradle Wrapper（`gradlew` / `gradlew.bat`），需要在本机安装 Gradle。当前维护环境使用 Gradle 8.14.4；遇到版本兼容问题时先核对该版本，不要把个人 Gradle 安装路径写进仓库文档或提交记录。
-- ForgeGradle：由 `build.gradle` 声明，当前插件版本为 `6.0.54`；依赖下载需要可访问配置的 Maven 仓库。
-- 工作目录：Gradle 的 `run/`、`build/` 和 `.gradle/` 都是本机生成目录，不提交这些构建或运行产物。
+根目录为 Forge 构建，使用 JDK 17；`platforms/fabric-1.20.1/` 为 Fabric 构建，使用 JDK 25。两个目录各有固定版本的 Wrapper 和分发包校验值。先在相应目录执行 `./gradlew --version` 核实 JVM。运行游戏服时两者均使用 Java 17。每个模块的命令和 JAR 路径见[部署说明](../DEPLOY.md)。
 
 ### JDK 路径提示
 
-当前 `gradle.properties` 中的 `org.gradle.java.home` 是维护者电脑上的 Windows JDK 路径。若该路径在你的电脑不存在，Gradle 可能无法启动。优先在用户级 Gradle 配置中设置自己的 JDK 路径（Windows 通常为 `%USERPROFILE%\.gradle\gradle.properties`，macOS/Linux 通常为 `~/.gradle/gradle.properties`），或在本地工作副本中临时调整该项；不要把个人绝对路径提交到项目。
-
-配置后重新运行 `gradle --version`，确认 JVM 为 17。若需要提交 `gradle.properties` 的项目级改动，先确认它不包含个人目录、凭据或机器专属配置。
+设置本机 `JAVA_HOME` 或单次构建的 Gradle JVM。若旧的用户级 `gradle.properties` 仍强制 JDK17，请移走该覆盖或为不同工具链使用独立 `GRADLE_USER_HOME`。机器路径只保存在本机，构建缓存和运行目录放到空间充足的数据盘。
 
 ## 推荐协作流程
 
-1. **描述目标和现象**：说明玩家看到什么、预期结果、操作步骤、Minecraft/Forge 版本及相关配置；不要附密码、访问令牌或真实账号库。
+1. **描述目标和现象**：说明玩家看到什么、预期结果、操作步骤、Minecraft、加载器和 Java 版本及相关配置；不要附密码、访问令牌或真实账号库。
 2. **让 Codex 先追调用链**：从命令、GUI、事件或配置入口找到状态变更和数据读写位置，再确定改动范围。认证相关可先看 [项目结构与运行链路](项目结构.md)。
 3. **按小范围修改**：一次处理一个可复核的问题。行为、配置、命令、权限或数据格式发生变化时，同步更新对应说明。
 4. **阅读差异**：用 `git diff --check` 和 `git diff` 检查空白错误、意外文件和生成物；确认敏感数据没有进入差异。
-5. **执行适用的检查**：文档修改检查差异与链接；代码修改按影响在仓库根目录运行：
+5. **执行适用的检查**：文档修改检查差异与链接；代码修改按涉及的平台分别进入构建目录运行：
 
    ```bash
-   gradle selfTest --no-daemon --console=plain
-   gradle build --no-daemon --console=plain
+   # 根目录，JDK 17
+   ./gradlew clean selfTest build --no-daemon --console=plain
+   # platforms/fabric-1.20.1 目录，JDK 25
+   ./gradlew clean build --no-daemon --console=plain
    ```
 
    `selfTest` 是项目自带的纯逻辑自测任务；`build` 会编译并打包。若环境不支持某项检查，记录具体原因和未覆盖部分，不要把未执行说成通过。
@@ -66,7 +63,7 @@
 
 ## 验收边界
 
-自动构建和纯逻辑自测不能代替 Minecraft 服务器/客户端交互。GUI、登录注册、权限插件兼容、原版客户端体验、Forge 事件时序等变化，需要在目标 Forge 47 服务器（必要时配合客户端）实际操作确认。没有目标服务器时，清楚标记为“待实测”，并给出维护者可以复现的步骤。
+自动构建和纯逻辑自测不能代替 Minecraft 服务器/客户端交互。GUI、登录注册、权限插件兼容、原版客户端体验、进出服事件时序等变化，需要在受到改动影响的 Forge/Fabric 独立服务端配合同版原版客户端实际操作确认。没有目标服务器时，清楚标记为“待实测”，并给出维护者可以复现的步骤。
 
 ## 协作安全
 

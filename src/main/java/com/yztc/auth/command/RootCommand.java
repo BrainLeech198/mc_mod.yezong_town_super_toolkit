@@ -81,7 +81,7 @@ public final class RootCommand {
         account.then(Commands.literal("email")
                 .then(Commands.argument("address", StringArgumentType.greedyString())
                         .executes(ctx -> runGated(ctx.getSource(), auth, p ->
-                                { EmailFlow.apply(p, auth, StringArgumentType.getString(ctx, "address")); return 1; }))));
+                                EmailFlow.applyCommand(p, auth, StringArgumentType.getString(ctx, "address"))))));
 
         account.then(Commands.literal("changepassword")
                 .then(Commands.argument("old", StringArgumentType.greedyString())
@@ -98,7 +98,7 @@ public final class RootCommand {
                                     }
                                     if (result == AuthManager.PasswordChangeResult.CHANGED) com.yztc.auth.ui.Sounds.ok(p);
                                     else com.yztc.auth.ui.Sounds.fail(p);
-                                    return 1;
+                                    return result == AuthManager.PasswordChangeResult.SAVE_FAILED ? 0 : 1;
                                 })))));
 
         root.then(account);
@@ -112,9 +112,9 @@ public final class RootCommand {
         root.then(Commands.literal("input")
                 .then(Commands.argument("token", com.mojang.brigadier.arguments.StringArgumentType.word())
                         .executes(ctx -> {
-                            com.yztc.auth.ui.InputPrompt.fire(
-                                    com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "token"));
-                            return 1;
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            return com.yztc.auth.ui.InputPrompt.fire(player.getUUID(),
+                                    com.mojang.brigadier.arguments.StringArgumentType.getString(ctx, "token")) ? 1 : 0;
                         })));
 
         // 玩家自助命令在根下；管理员专属统一在 /yzts admin 组内（AdminCommands 内再挂 status/risk）
@@ -164,6 +164,7 @@ public final class RootCommand {
 
     /** 执行闸门校验并提示结果；GUI 调用方据此决定保留或切换输入窗口。 */
     public static GateManager.GateResult attemptGate(ServerPlayer p, AuthManager auth, String pw) {
+        if (auth.closingSession(p)) return GateManager.GateResult.BAD;
         GateManager.GateResult result = auth.gateAttempt(p, pw);
         switch (result) {
             case NOT_SET -> p.sendSystemMessage(Lang.msg("gate_not_set"));
@@ -184,6 +185,7 @@ public final class RootCommand {
     }
 
     public static int doLogin(ServerPlayer p, AuthManager auth, String pw) {
+        if (auth.closingSession(p) || gateBlocked(p, auth)) return 0;
         if (auth.isAuthenticated(p)) { p.sendSystemMessage(Lang.msg("already_logged_in")); return 1; }
         switch (auth.login(p, pw)) {
             case OK -> {
@@ -202,6 +204,11 @@ public final class RootCommand {
                     p.sendSystemMessage(Lang.msg("login_bad_remaining", String.valueOf(remaining)));
                 }
                 com.yztc.auth.ui.Sounds.fail(p);
+            }
+            case SAVE_FAILED -> {
+                p.sendSystemMessage(Lang.msg("auth_storage_error"));
+                com.yztc.auth.ui.Sounds.fail(p);
+                return 0;
             }
             case NO_ACCOUNT -> {
                 p.sendSystemMessage(Lang.msg("not_registered"));
@@ -222,6 +229,7 @@ public final class RootCommand {
     }
 
     public static int doRegister(ServerPlayer p, AuthManager auth, String pw) {
+        if (auth.closingSession(p) || gateBlocked(p, auth)) return 0;
         if (auth.isAuthenticated(p)) { p.sendSystemMessage(Lang.msg("already_logged_in")); return 1; }
         if (pw.length() < AuthConfig.minPasswordLength()) {
             p.sendSystemMessage(Lang.msg("register_too_short", AuthConfig.minPasswordLength()));
@@ -244,6 +252,7 @@ public final class RootCommand {
             case SAVE_FAILED -> {
                 p.sendSystemMessage(Lang.msg("auth_storage_error"));
                 com.yztc.auth.ui.Sounds.fail(p);
+                return 0;
             }
             case INVALID_PASSWORD -> {
                 p.sendSystemMessage(Lang.msg("register_too_short", AuthConfig.minPasswordLength()));

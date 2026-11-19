@@ -75,9 +75,8 @@ public final class RiskLog {
         r.action = action;
         r.target = target;
         r.detail = detail;
-        store.add(r);
         try {
-            store.save();
+            store.addAndSave(r);
         } catch (IOException e) {
             LOGGER.warn("[yzt_super] risk.json 写入失败：{}", e.toString());
         }

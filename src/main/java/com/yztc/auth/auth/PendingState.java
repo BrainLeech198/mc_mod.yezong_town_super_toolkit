@@ -15,6 +15,7 @@ public final class PendingState {
     public final long joinedAt;
     public int loginFails = 0;
     public boolean gatePassed = false;
+    public boolean disconnecting;
     /** 上次重发标题的时刻，用于闪烁节流。 */
     public long lastTitleMs;
 

@@ -126,7 +126,8 @@ public final class ButtonPanel {
             // 避免聊天提示出现时旧菜单仍挡在屏幕上；若动作打开新菜单，也不会被旧菜单收尾关掉。
             // 用 Defer.nextTick 而非 server.execute —— 后者在主线程上是同步执行的。
             Defer.nextTick(viewer, () -> {
-                if (viewer.containerMenu == this) viewer.closeContainer();
+                if (viewer.containerMenu != this) return;
+                viewer.closeContainer();
                 b.action().accept(viewer);
             });
         }

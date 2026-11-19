@@ -1,0 +1,103 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+def rootProperties = new Properties()
+file('../../gradle.properties').withReader('UTF-8') { rootProperties.load(it) }
+version = rootProperties.mod_version
+group = rootProperties.mod_group_id
+base.archivesName = rootProperties.mod_id
+
+loom {
+    mixin {
+        useLegacyMixinAp = true
+        defaultRefmapName = 'yzt_super.refmap.json'
+    }
+}
+
+repositories {
+    maven {
+        name = 'Fuzss'
+        url = 'https://raw.githubusercontent.com/Fuzss/modresources/main/maven/'
+        content { includeGroup 'fuzs.forgeconfigapiport' }
+    }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    modImplementation "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_port_version}"
+    implementation 'com.electronwill.night-config:core:3.6.5'
+    implementation 'com.electronwill.night-config:toml:3.6.5'
+    implementation project(':common')
+}
+
+// 同一游戏版本和 official mappings 下复用服务端代码。只从共享目录排除 Forge 入口。
+def gameSources = objects.sourceDirectorySet('minecraft1201', 'Minecraft 1.20.1 server sources')
+gameSources.srcDir '../../src/main/java'
+gameSources.exclude(
+        'com/yztc/auth/YzAuthMod.java',
+        'com/yztc/auth/api/ClientIpResolveEvent.java',
+        'com/yztc/auth/auth/AuthEvents.java',
+        'com/yztc/auth/lockdown/LockdownHandler.java',
+        'com/yztc/auth/title/TitleEvents.java',
+        'com/yztc/auth/ui/ModInfo.java'
+)
+sourceSets.main.java.source(gameSources)
+
+def sharedResources = file('../../src/main/resources')
+tasks.named('processResources') {
+    from(sharedResources) { include 'assets/**', 'logo.png' }
+    def metadata = [
+            version: project.version, game: minecraft_version, loader: loader_version,
+            api: fabric_api_version, configPort: forge_config_port_version
+    ]
+    inputs.properties(metadata)
+    filesMatching('fabric.mod.json') { expand(metadata) }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('jar') {
+    dependsOn ':common:classes'
+    from { project(':common').extensions.getByType(SourceSetContainer).main.output }
+}
+
+tasks.named('remapJar') {
+    archiveFileName = "yzt_super-${project.version}-mc${minecraft_version}-fabric.jar"
+}
+
+// 校验最终安装包，避免开发环境 classpath 掩盖 common、Mixin 映射或语言资源遗漏。
+def productionJar = tasks.named('remapJar').flatMap { it.archiveFile }
+tasks.register('verifyServerJar') {
+    group = 'verification'
+    inputs.file(productionJar)
+    doLast {
+        new java.util.zip.ZipFile(productionJar.get().asFile).withCloseable { zip ->
+            def metadata = new groovy.json.JsonSlurper().parseText(zip.getInputStream(
+                    zip.getEntry('fabric.mod.json')).getText('UTF-8'))
+            assert metadata.version == project.version.toString()
+            assert metadata.environment == 'server'
+            assert metadata.entrypoints.server.size() == 1
+            def entries = [metadata.entrypoints.server.first().replace('.', '/') + '.class',
+                           'com/yztc/auth/security/PasswordHasher.class',
+                           'assets/yzt_super/lang/en_us.json', 'assets/yzt_super/lang/zh_cn.json',
+                           'yzt_super.mixins.json', 'yzt_super.refmap.json']
+            entries.each { path -> assert zip.getEntry(path) != null : "Missing from final jar: $path" }
+            assert zip.getEntry('META-INF/mods.toml') == null
+            assert zip.getEntry('com/yztc/auth/YzAuthMod.class') == null
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyServerJar' }

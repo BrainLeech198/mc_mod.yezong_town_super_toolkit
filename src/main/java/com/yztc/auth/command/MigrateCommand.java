@@ -10,6 +10,7 @@ import com.yztc.auth.lang.Lang;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,12 +39,15 @@ public final class MigrateCommand {
             return 0;
         }
 
-        MigrateService.Report rep = MigrateService.migrate(legacy, store, dryRun, System.currentTimeMillis());
+        MigrateService.Report rep;
+        long now = System.currentTimeMillis();
+        try {
+            rep = dryRun ? MigrateService.migrate(legacy, store, true, now) : MigrateService.migrateAndSave(legacy, store, now);
+        } catch (IOException e) {
+            src.sendFailure(Lang.msg("err_save", e.getMessage()));
+            return 0;
+        }
         if (!dryRun) {
-            try { store.save(); } catch (Exception e) {
-                src.sendFailure(Lang.msg("err_save", e.getMessage()));
-                return 0;
-            }
             com.yztc.auth.risk.RiskLog.record(com.yztc.auth.risk.RiskLog.MIGRATE,
                     com.yztc.auth.risk.RiskLog.actorOf(src), null, rep.summary());
         }

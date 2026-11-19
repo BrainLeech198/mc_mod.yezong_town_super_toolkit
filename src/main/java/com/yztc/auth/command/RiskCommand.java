@@ -68,12 +68,11 @@ public final class RiskCommand {
         if (store == null) { src.sendFailure(Lang.msg("risk_done_none")); return 0; }
         ServerPlayer p = src.getPlayer();
         String by = p == null ? "(console)" : p.getGameProfile().getName().toLowerCase(Locale.ROOT);
-        if (!store.markHandled(id, by, System.currentTimeMillis())) {
-            src.sendFailure(Lang.msg("risk_done_none"));
-            return 0;
-        }
         try {
-            store.save();
+            if (!store.markHandledAndSave(id, by, System.currentTimeMillis())) {
+                src.sendFailure(Lang.msg("risk_done_none"));
+                return 0;
+            }
         } catch (IOException e) {
             src.sendFailure(Lang.msg("err_save", e.getMessage()));
             return 0;

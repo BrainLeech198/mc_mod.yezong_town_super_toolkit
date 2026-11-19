@@ -1,6 +1,6 @@
 # 野粽乡超级工具箱（yzt_super）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前产物：`build/libs/yzt_super-1.3.4.jar`。
+用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前源码版本为 `1.3.4`，各平台的可用性见[兼容矩阵](README.md#适用范围)。
 
 ## 1. 迁移前备份
 
@@ -14,29 +14,26 @@
 
 ## 2. 构建
 
-需要 Java 17 和已安装的 Gradle；维护环境使用 Gradle 8.14.4。当前仓库未提交 Wrapper，且项目配置有原机器的 JDK 路径，请先按 [Codex 协作指南](docs/Codex协作指南.md#jdk-路径提示) 配置本机环境。以下命令在克隆后的仓库根目录执行：
+在对应目录把 `JAVA_HOME` 指向表中构建 JDK，执行 Wrapper。首次构建会下载 Gradle、游戏映射和平台依赖。Windows 从 PowerShell 运行下表命令，Linux/macOS 把 `.\gradlew.bat` 换成 `./gradlew`。
 
-```bash
-gradle build --no-daemon --console=plain
-```
+| 游戏 / 加载器 | 构建目录与工具链 | 命令 | 产物（相对于该目录） |
+|---|---|---|---|
+| 1.20.1 / Forge 47.4.0 | 根目录，JDK 17、Gradle 8.14.4、ForgeGradle 6.0.54 | `.\gradlew.bat clean selfTest build --no-daemon` | `build/libs/yzt_super-1.3.4-mc1.20.1-forge.jar` |
+| 1.20.1 / Fabric Loader 0.20.1 | `platforms/fabric-1.20.1/`，JDK 25、Gradle 9.8.2、Loom 1.19.4 | `.\gradlew.bat clean build --no-daemon` | `build/libs/yzt_super-1.3.4-mc1.20.1-fabric.jar` |
 
-产物文件名由 `gradle.properties` 的 `mod_version` 决定；当前版本产物为 `build/libs/yzt_super-1.3.4.jar`。纯逻辑自测：
+两个服务端都使用 Java 17。Fabric 服务端的 `mods/` 另放 **Fabric API 0.92.12+1.20.1** 和 **Forge Config API Port 8.0.3（Fabric 版）**。配置库让两端共用同一组 TOML 键与世界级配置。Forge 版使用 Forge 自带配置系统。现有保存、迁移和备份路径见下文。每次只装一个工具箱 JAR，替换前停服并取出历史的 `yzt_super-1.3.4.jar`。[Fabric API](https://modrinth.com/mod/fabric-api) · [Forge Config API Port](https://github.com/Fuzss/forge-config-api-port/tree/1.20.1)
 
-```bash
-gradle selfTest --no-daemon --console=plain
-```
-
-判断自测以本次实际结果和退出状态为准，历史数量不保证与新代码一致。对外发行还应按 [发布操作规范](docs/发布规范.md) 核对源提交、重映射、元数据、哈希与附件；本地构建不等于已上传 GitHub Release。
+先记录 `gradlew --version`、最终 JAR 的 SHA-256 和平台元数据，再在隔离服部署。源码构建、服务端启动、原版客户端和持久化验收的实际结果见[平台验收记录](docs/平台验收.md)。发行步骤见[发布规范](docs/发布规范.md)。
 
 ## 3. 替换
 
 1. 从 `mods/` 移除 `SAuth-2.0.0.jar`（务必移除：本 mod 的裸指令 `/login` `/register` 与 SAuth 冲突）。
-2. 放入当前发布对应的 `yzt_super-<版本>.jar`。
+2. 按上表选对应平台的 JAR 放入 `mods/`。
 3. **保留** `config/serverreg/users.json` 原位不动（迁移要读它）。
 4. 若在用其它登录类 mod，先确认不会与本 mod 抢同名裸指令。
 
-本 mod 声明为**仅服务端**（`displayTest="IGNORE_SERVER_VERSION"`）：**玩家无需在客户端安装本 mod**，原版客户端即可进服。
-装了本 mod 的客户端提示走本地翻译；未装的客户端提示走服务端兜底文本（见 §6 `language`）。
+服务端安装使用 Forge 的 `displayTest="IGNORE_SERVER_VERSION"` 或 Fabric 的 `environment="server"`：**玩家无需在客户端安装本 mod**，原版客户端即可进服。
+原版客户端显示服务端提供的兜底文本（见 §6 `language`）。
 
 ## 4. 首次启动与迁移
 
@@ -54,7 +51,7 @@ gradle selfTest --no-daemon --console=plain
 
 ## 5. 可选：全服闸门密码
 
-只有最高权可设（控制台，或游戏内 `yzt_super.gate` 权限者且需二次验密）。设置后**所有人（含管理员）**进服必须先过闸。
+控制台可以直接设置。游戏内玩家须先有管理命令权限（`yzt_super.admin`，默认 OP2），并有闸门权限（`yzt_super.gate`，默认 OP4），修改前再验证本人的密码。安装 LuckPerms 时按节点分别读取显式允许或拒绝，节点未设置时沿用该节点的 OP 门槛。设置后**所有人（含管理员）**进服必须先过闸。
 
 ```
 /yzts admin serverpassword set <密码>    # 开启门禁
@@ -156,8 +153,10 @@ GUI 说明：写信/邮箱管理/账户设置/管理面板均为服务端箱式�
 | 位置库 | `config/yzt_super/lastseen.json` | 每个玩家最后下线位置与游戏模式（一人一条；v1 自动兼容读取，升级后写为 v2） |
 | 高风险库 | `config/yzt_super/risk.json` | 管理类危险操作台账（只记动作/主体，无明文），上限 500 条 |
 | 审计日志 | `logs/yzt_super-audit.log` | 登录/闸门结果行（名字 / IP / 结果词，无明文） |
-| 服务器配置 | `world/serverconfig/yzt_super-server.toml` | Forge SERVER 配置按世界存放 |
+| 服务器配置 | `world/serverconfig/yzt_super-server.toml` | Forge SERVER 配置按世界存放；Fabric 使用相同的世界文件 |
 | SAuth 旧库 | `config/serverreg/users.json` | 只读迁移源，迁移完可归档 |
+
+Fabric 优先读取实际世界的 `serverconfig/yzt_super-server.toml`。建新世界时，如有 `defaultconfigs/yzt_super-server.toml`，以其为模板并补全缺项。已有世界不受全局同名文件影响。运行中每 20 tick 检查文件变化，若修改后的 TOML 无法解析，服务端记录错误并继续使用上次有效设置。
 
 主要配置项（`world/serverconfig/yzt_super-server.toml`）：`minPasswordLength`、`maxLoginAttempts`、`lockoutSeconds`、`pbkdf2Iterations`、`ipRateLimit.count`、`ipRateLimit.windowSeconds`、`loginTimeoutSeconds`、`ipResolution`、`forwardedHeaderName`、`logoutMode`、`logoutThrottleSeconds`、`legacyUsersFile`。
 
@@ -203,7 +202,9 @@ GUI 说明：写信/邮箱管理/账户设置/管理面板均为服务端箱式�
 
 ## 7. 回滚
 
-换回 `SAuth-2.0.0.jar` 即可。新库在 `config/yzt_super/users.json`，与 `config/serverreg/users.json` 无耦合；回滚不影响旧文件。若回滚前有人改过密，需在 SAuth 侧另行重置。
+在 Forge 与 Fabric 间切换时，请在停服后的世界和配置副本上验证。保留 `config/yzt_super/` 五个 JSON 库及备份、世界的 `serverconfig/`、世界存档和原加载器依赖。测试通过后再切换。要回退测试产生的数据，用切换前同一时间点的备份恢复这些目录并换回相应加载器；两套进程应分别使用自己的目录。跨加载器的其他 Mod 或世界注册项须另行核对。
+
+从本工具箱退回 SAuth 时，换回 `SAuth-2.0.0.jar`。新库在 `config/yzt_super/users.json`，与 `config/serverreg/users.json` 无耦合；回滚不影响旧文件。若回滚前有人改过密，需在 SAuth 侧另行重置。
 
 ## 8. 书页 clickEvent 支持性（已由字节码核实：**不生效**）
 
@@ -218,9 +219,9 @@ GUI 说明：写信/邮箱管理/账户设置/管理面板均为服务端箱式�
 
 另：`give()` 里放书后会把书放进可用的**热栏格**并同步选中格，否则 `ClientboundOpenBookPacket(MAIN_HAND)` 打开的当前选中格不是书，玩家点了不开。
 
-## 9. 验收记录（Spec §7 的 17 条用例）
+## 9. 历史完整验收清单
 
-自动化覆盖率：`gradle selfTest` 1343 条纯逻辑用例全绿，覆盖哈希/存储/限流/迁移/语言/闸门/密码工具/UI 会话/书页 NBT（纯文本、无点击）/验密/闸门决策/登出禁重连/闸门限流，以及本批新增的密码强度/审计行格式/留言与位置存储/倒计时与欢迎语构建/Tab 隐藏纯逻辑/位置文本/状态文本/收件名校验/AFK 朝向判定/登出重隐藏/启动横幅排版/消息配色/登录面板/按钮面板行数（含显式槽位与只读项）/双线方框排版（ChatBox/TextWidth）/高风险记录存储与文本/高风险详情行/大喇叭纯逻辑（通道选择/冷却取整/颜色剥离与净化/文本组装）/挂机公告纯逻辑（进入挂机/返回判定/随机变体/消息分段配色/变体键声明）/服务端兜底文本（ServerLang）/聊天栏按钮点击动作（suggest 与 run）/**ServerLang 引用键已声明**。以下 44 条依赖真实客户端交互，**本次未由构建流程执行**，需在 `runServer` + `runClient` 手工走查后填写：
+下表保留旧版本为服主整理的 46 项整服走查用例及其当时状态。本分支按具体加载器、操作和 JAR 分别登记了实际运行结果和待实测项，见[平台验收记录](docs/平台验收.md)。
 
 | # | 用例 | 结果 |
 |---|---|---|

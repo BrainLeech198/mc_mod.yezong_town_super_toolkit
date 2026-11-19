@@ -1,9 +1,10 @@
 # 野粽乡超级工具箱
 
-**Yezong Town Super Toolkit** 是面向 Minecraft 服务器的实用工具 Mod，当前适配 **Minecraft 1.20.1 / Forge 47**。它把登录注册、留言、玩家常用入口和管理员工具集中到一个服务端 Mod 中，并尽量用清楚的提示带玩家完成操作。
+**Yezong Town Super Toolkit** 是面向 Minecraft 服务器的实用工具 Mod，面向 **Minecraft 1.20.1**，Forge 和 Fabric 分别打包。它把登录注册、留言、玩家常用入口和管理员工具集中到一个服务端 Mod 中，并尽量用清楚的提示带玩家完成操作。
 
 ![Minecraft 1.20.1](https://img.shields.io/badge/Minecraft-1.20.1-3C8527?logo=minecraft&logoColor=white)
 ![Forge 47](https://img.shields.io/badge/Forge-47-orange)
+![Fabric](https://img.shields.io/badge/Fabric-1.20.1-c7ba91)
 ![Java 17](https://img.shields.io/badge/Java-17-blue?logo=openjdk&logoColor=white)
 ![Server side](https://img.shields.io/badge/Mod-server--side-informational)
 
@@ -29,15 +30,13 @@
 
 ## 适用范围
 
-| 项目 | 当前支持 |
-|---|---|
-| Minecraft | 1.20.1 |
-| Mod 加载器 | Forge 47（项目当前构建版本为 47.4.0） |
-| Java | 17 |
-| 运行位置 | 服务端；玩家客户端不需要安装本 Mod |
-| 语言 | 中文与英文；服务端兜底语言可配置 |
+| Minecraft | 服务端加载器 | 游戏 Java | 验证状态（2026-11-19） |
+|---|---|---|---|
+| 1.20.1 | Forge 47.4.0 | 17 | 已完成运行验证（独立服、原版客户端及核心功能） |
+| 1.20.1 | Fabric Loader 0.20.1 + Fabric API 0.92.12+1.20.1 + Forge Config API Port 8.0.3 | 17 | 已完成运行验证（独立服、原版客户端及核心功能） |
+| 1.21.1 | NeoForge 21.1.267 | 21 | 计划支持（后续候选） |
 
-本项目面向 Forge 服务端，不是 Bukkit / Paper 插件，也不适用于 Fabric。代理转发地址等部署差异有单独的适配说明，默认连接地址回退行为见 [代理客户端地址适配](docs/代理IP适配.md)。
+矩阵按具体组合记录状态。两端均使用游戏 Java 17，玩家可用原版客户端。正在移植的组合标为“正在适配”，只通过打包的组合标为“构建通过、待运行验证”。当前 PR 提供可自行构建的验证包，各项操作、包哈希、待实测场景与后续计划见记录。[平台验收记录](docs/平台验收.md) · [架构与候选组合](docs/兼容性审计.md) · [可信代理地址](docs/代理IP适配.md)
 
 ## 安装
 
@@ -47,15 +46,7 @@
 
 ### 从源码构建
 
-需要 JDK 17 和本机 Gradle 8.14.4。当前仓库未提交 Gradle Wrapper，因此需要自行安装 Gradle。构建前确认 `gradle --version` 显示的 JVM 为 17；本仓库的 `gradle.properties` 含有维护者本机的 JDK 路径，如该路径在你的环境不存在，请按[协作指南的 JDK 路径说明](docs/Codex协作指南.md#jdk-路径提示)在本机配置，不要提交个人绝对路径。
-
-```bash
-git clone https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit.git
-cd mc_mod.yezong_town_super_toolkit
-gradle build --no-daemon --console=plain
-```
-
-构建产物位于 `build/libs/yzt_super-<版本号>.jar`。把 JAR 放入 Forge 服务端的 `mods/` 目录并启动服务器。若原服务器安装了 SAuth，先备份数据并移除旧的 `SAuth-2.0.0.jar`，避免 `/login` 和 `/register` 指令冲突。迁移步骤见 [部署与迁移说明](DEPLOY.md)。
+Forge 使用 JDK 17，在根目录执行 `./gradlew clean selfTest build`。Fabric 使用 JDK 25 构建，在 `platforms/fabric-1.20.1/` 执行 `./gradlew clean build`，产物目标 Java 17。Windows PowerShell 使用 `.\gradlew.bat`。选择与加载器对应的 JAR，文件名含 Mod 版本、Minecraft 版本和加载器名。依赖、输出路径、SAuth 迁移和回滚操作见[部署说明](DEPLOY.md)。
 
 ## 进入服务器后
 
@@ -90,7 +81,7 @@ gradle build --no-daemon --console=plain
 
 ## 参与协作
 
-欢迎提交可复现的问题报告和改进建议。报告问题时请写明 Minecraft/Forge 版本、操作步骤、预期结果与实际结果；分享日志前请删除 IP、账号数据、令牌等隐私信息。
+欢迎提交可复现的问题报告和改进建议。报告问题时请写明 Minecraft 和加载器版本、操作步骤、预期结果与实际结果；分享日志前请删除 IP、账号数据、令牌等隐私信息。
 
 新协作者先读 [交接说明](docs/交接说明.md) 和 [提交与协作规范](CONTRIBUTING.md)，直接在原仓库工作分支协作，无需另建仓库。Codex 的环境准备见 [Codex 协作指南](docs/Codex协作指南.md)，仓库内 AI 工作规则见 [AGENTS.md](AGENTS.md)。Mod 版本按 [版本管理规范](docs/版本管理规范.md) 维护，发行按 [发布规范](docs/发布规范.md) 执行。
 

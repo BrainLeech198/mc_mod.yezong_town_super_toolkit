@@ -46,6 +46,18 @@ public final class ModInfo {
         }
     }
 
+    public static boolean isLoaded(String modId) {
+        return ModList.get().isLoaded(modId);
+    }
+
+    public static String loaderLabel() {
+        return com.yztc.auth.lang.ServerLang.template("banner_forge");
+    }
+
+    public static String loaderVersion() {
+        return forge();
+    }
+
     public static String forge() {
         try {
             return ForgeVersion.getVersion();

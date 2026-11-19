@@ -4,15 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -21,30 +15,26 @@ import java.util.Map;
 public final class LastSeenStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    private final Path file;
+    private final JsonStoreFile file;
     private final Map<String, LastSeen> players = new LinkedHashMap<>();
 
     public LastSeenStore(Path file) {
-        this.file = file;
+        this.file = new JsonStoreFile(file);
     }
 
     public void load() throws IOException {
-        players.clear();
-        if (!Files.exists(file)) return;
-        String raw = Files.readString(file, StandardCharsets.UTF_8);
-        if (raw.isBlank()) return;
-        JsonObject root;
-        try {
-            root = JsonParser.parseString(raw).getAsJsonObject();
-        } catch (RuntimeException e) {
-            throw new IOException("lastseen.json 解析失败: " + e.getMessage(), e);
-        }
-        if (root.has("players") && root.get("players").isJsonObject()) {
+        file.load(this::decode);
+    }
+
+    private void decode(JsonObject root) {
+        Map<String, LastSeen> loaded = new LinkedHashMap<>();
+        if (root.has("players")) {
             for (Map.Entry<String, JsonElement> e : root.getAsJsonObject("players").entrySet()) {
-                if (!e.getValue().isJsonObject()) continue;
-                players.put(e.getKey().toLowerCase(Locale.ROOT), GSON.fromJson(e.getValue(), LastSeen.class));
+                if (e.getValue().isJsonObject()) loaded.put(e.getKey().toLowerCase(Locale.ROOT), GSON.fromJson(e.getValue(), LastSeen.class));
             }
         }
+        players.clear();
+        players.putAll(loaded);
     }
 
     public void save() throws IOException {
@@ -54,24 +44,23 @@ public final class LastSeenStore {
         for (Map.Entry<String, LastSeen> e : players.entrySet()) arr.add(e.getKey(), GSON.toJsonTree(e.getValue()));
         root.add("players", arr);
 
-        Path parent = file.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, GSON.toJson(root), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        if (Files.exists(file)) {
-            Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
-                    StandardCopyOption.REPLACE_EXISTING);
-        }
-        try {
-            Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-        }
+        file.save(GSON, root);
     }
 
     public void put(LastSeen s) {
         players.put(s.name.toLowerCase(Locale.ROOT), s);
+    }
+
+    public void putAndSave(LastSeen snapshot) throws IOException {
+        String name = snapshot.name.toLowerCase(Locale.ROOT);
+        LastSeen previous = players.put(name, snapshot);
+        try {
+            save();
+        } catch (IOException ex) {
+            if (previous == null) players.remove(name);
+            else players.put(name, previous);
+            throw ex;
+        }
     }
 
     public LastSeen get(String nameLower) {

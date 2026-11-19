@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "yzt_super",
+  "version": "${version}",
+  "name": "野粽乡超级工具箱",
+  "description": "服务端登录认证、全服闸门、玩家工具和管理员工具。",
+  "authors": ["BrainLeech198"],
+  "license": "All Rights Reserved",
+  "icon": "logo.png",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["com.yztc.auth.FabricToolkit"]
+  },
+  "mixins": ["yzt_super.mixins.json"],
+  "depends": {
+    "minecraft": "=${game}",
+    "java": ">=17",
+    "fabricloader": ">=${loader}",
+    "fabric-api": "=${api}",
+    "forgeconfigapiport": "=${configPort}"
+  }
+}

@@ -5,15 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,30 +19,26 @@ public final class RiskStore {
     /** 记录上限，超出丢弃最早条目（已处理优先丢弃）。 */
     public static final int MAX = 500;
 
-    private final Path file;
+    private final JsonStoreFile file;
     private final List<Risk> entries = new ArrayList<>();
 
     public RiskStore(Path file) {
-        this.file = file;
+        this.file = new JsonStoreFile(file);
     }
 
     public void load() throws IOException {
-        entries.clear();
-        if (!Files.exists(file)) return;
-        String raw = Files.readString(file, StandardCharsets.UTF_8);
-        if (raw.isBlank()) return;
-        JsonObject root;
-        try {
-            root = JsonParser.parseString(raw).getAsJsonObject();
-        } catch (RuntimeException e) {
-            throw new IOException("risk.json 解析失败: " + e.getMessage(), e);
-        }
-        if (root.has("entries") && root.get("entries").isJsonArray()) {
+        file.load(this::decode);
+    }
+
+    private void decode(JsonObject root) {
+        List<Risk> loaded = new ArrayList<>();
+        if (root.has("entries")) {
             for (JsonElement e : root.getAsJsonArray("entries")) {
-                if (!e.isJsonObject()) continue;
-                entries.add(GSON.fromJson(e, Risk.class));
+                if (e.isJsonObject()) loaded.add(GSON.fromJson(e, Risk.class));
             }
         }
+        entries.clear();
+        entries.addAll(loaded);
     }
 
     public void save() throws IOException {
@@ -58,20 +48,7 @@ public final class RiskStore {
         for (Risk r : entries) arr.add(GSON.toJsonTree(r));
         root.add("entries", arr);
 
-        Path parent = file.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, GSON.toJson(root), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        if (Files.exists(file)) {
-            Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
-                    StandardCopyOption.REPLACE_EXISTING);
-        }
-        try {
-            Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-        }
+        file.save(GSON, root);
     }
 
     public String add(Risk r) {
@@ -85,6 +62,19 @@ public final class RiskStore {
         entries.add(r);
         prune();
         return r.id;
+    }
+
+    public void addAndSave(Risk r) throws IOException {
+        // add may evict an older entry when the cap is reached.
+        List<Risk> previous = new ArrayList<>(entries);
+        add(r);
+        try {
+            save();
+        } catch (IOException ex) {
+            entries.clear();
+            entries.addAll(previous);
+            throw ex;
+        }
     }
 
     /** 超上限时按时间丢最早条目（已处理者优先）。 */
@@ -127,6 +117,23 @@ public final class RiskStore {
         r.handled = true;
         r.handledBy = by;
         r.handledAt = now;
+        return true;
+    }
+
+    public boolean markHandledAndSave(String id, String by, long now) throws IOException {
+        Risk r = byId(id);
+        if (r == null || r.handled) return false;
+        String previousBy = r.handledBy;
+        long previousAt = r.handledAt;
+        markHandled(id, by, now);
+        try {
+            save();
+        } catch (IOException ex) {
+            r.handled = false;
+            r.handledBy = previousBy;
+            r.handledAt = previousAt;
+            throw ex;
+        }
         return true;
     }
 

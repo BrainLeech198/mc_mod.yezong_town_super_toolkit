@@ -20,6 +20,7 @@ public final class SelfTestMain {
         testConfig();
         testPasswordHasher();
         testAccountStore();
+        StoreFailureChecks.run();
         testRateLimiter();
         testMigrateService();
         testLang();
@@ -274,7 +275,7 @@ public final class SelfTestMain {
         Assert.eq(gateSub.getStyle().getColor().getValue(), yellow, "闸门副标题为黄色");
 
         var loginBtn = com.yztc.auth.ui.WelcomeSync.button(false, true);
-        Assert.that(loginBtn.getString().contains("需要登录"), "登录提示说明需要登录");
+        Assert.that(loginBtn.getString().contains("欢迎回来，请登录"), "老玩家看到返回登录指引");
         Assert.that(loginBtn.getString().contains("【打开输入框】"), "登录提示只有一个打开输入框按钮");
         Assert.eq(loginBtn.getSiblings().size(), 1, "登录提示仅一个可点入口");
         var guiSeg = loginBtn.getSiblings().get(0);
@@ -868,8 +869,14 @@ public final class SelfTestMain {
         Assert.that(!com.yztc.auth.ui.InputPrompt.fire(token), "重复 fire 失败（一次性）");
         Assert.eq(fired[0], 1, "重复 fire 不再执行");
         Assert.that(!com.yztc.auth.ui.InputPrompt.fire("nope"), "未知令牌 fire 失败");
-
         java.util.UUID owner = java.util.UUID.randomUUID();
+        String owned = com.yztc.auth.ui.InputPrompt.register(owner, () -> fired[0]++);
+        Assert.that(!com.yztc.auth.ui.InputPrompt.fire(java.util.UUID.randomUUID(), owned), "不同玩家不能消费菜单动作");
+        Assert.that(com.yztc.auth.ui.InputPrompt.fire(owner, owned), "原玩家仍可打开");
+        String stale = com.yztc.auth.ui.InputPrompt.register(owner, () -> fired[0]++);
+        com.yztc.auth.ui.InputPrompt.forget(owner);
+        Assert.that(!com.yztc.auth.ui.InputPrompt.fire(owner, stale), "结束会话后旧提示失效");
+
         java.util.List<String> commits = new java.util.ArrayList<>();
         int[] cancels = {0};
         var s = com.yztc.auth.ui.UiSession.open(owner, commits::add, () -> cancels[0]++);
@@ -1126,19 +1133,21 @@ public final class SelfTestMain {
         Assert.eq(mail.get(2).command(), "/yzts mail manage", "管理命令=管理 GUI");
         Assert.that(mail.get(2).run(), "管理=点击即开 GUI");
 
-        // 账号段：账户 / 指南
+        // 账号段：账户 / 指南 / 大厅
         var acc = com.yztc.auth.ui.LoginBoard.accountButtons();
-        Assert.eq(acc.size(), 2, "账号段两个按钮");
+        Assert.eq(acc.size(), 3, "账号段三个按钮");
         Assert.eq(acc.get(0).labelKey(), "btn_account", "账号1=账户");
         Assert.eq(acc.get(0).command(), "/yzts account", "账户命令=账户 GUI");
         Assert.that(acc.get(0).run(), "账户=点击即开 GUI");
         Assert.eq(acc.get(1).labelKey(), "btn_guide", "账号2=指南");
         Assert.eq(acc.get(1).command(), "/yzts help", "指南命令=帮助");
         Assert.that(!acc.get(1).run(), "指南=只填命令（非 GUI）");
+        Assert.eq(acc.get(2), new com.yztc.auth.ui.LoginBoard.Btn("btn_home", "/yzts menu", true),
+                "大厅按钮进入既有菜单");
 
         // 合并表：邮箱段 + 账号段
         var btns = com.yztc.auth.ui.LoginBoard.buttons();
-        Assert.eq(btns.size(), 5, "共五个文字按钮");
+        Assert.eq(btns.size(), 6, "共六个文字按钮");
         Assert.eq(btns.get(3).labelKey(), "btn_account", "合并表按钮4=账户");
         Assert.eq(btns.get(4).labelKey(), "btn_guide", "合并表按钮5=指南");
 

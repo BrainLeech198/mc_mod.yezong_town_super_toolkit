@@ -5,16 +5,10 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.yztc.auth.config.AuthConfig;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -27,43 +21,39 @@ public final class MailStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final Logger LOGGER = LoggerFactory.getLogger("yzt_super");
 
-    private final Path file;
+    private final JsonStoreFile file;
     private final List<Mail> mails = new ArrayList<>();
 
     public MailStore(Path file) {
-        this.file = file;
+        this.file = new JsonStoreFile(file);
     }
 
     public void load() throws IOException {
+        file.load(this::decode);
+    }
+
+    private void decode(JsonObject root) {
+        // Validate the collection and configuration before replacing a previously loaded inbox.
+        JsonArray arr = root.has("mails") ? root.getAsJsonArray("mails") : new JsonArray();
+        int days = AuthConfig.mailExpireDays();
+        long now = System.currentTimeMillis();
         mails.clear();
-        if (!Files.exists(file)) return;
-        String raw = Files.readString(file, StandardCharsets.UTF_8);
-        if (raw.isBlank()) return;
-        JsonObject root;
-        try {
-            root = JsonParser.parseString(raw).getAsJsonObject();
-        } catch (RuntimeException e) {
-            throw new IOException("mail.json 解析失败: " + e.getMessage(), e);
-        }
-        if (root.has("mails") && root.get("mails").isJsonArray()) {
-            JsonArray arr = root.getAsJsonArray("mails");
-            for (int i = 0; i < arr.size(); i++) {
-                JsonElement e = arr.get(i);
-                if (!e.isJsonObject()) continue;
-                try {
-                    Mail mail = GSON.fromJson(e, Mail.class);
-                    if (!normalizeLoadedMail(mail)) {
-                        LOGGER.warn("[yzt_super] mail.json 第 {} 条记录无效，已跳过", i + 1);
-                        continue;
-                    }
-                    if (byId(mail.id) != null) mail.id = null;
-                    add(mail);
-                } catch (RuntimeException ex) {
-                    LOGGER.warn("[yzt_super] mail.json 第 {} 条记录无法读取，已跳过：{}", i + 1, ex.toString());
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement e = arr.get(i);
+            if (!e.isJsonObject()) continue;
+            try {
+                Mail mail = GSON.fromJson(e, Mail.class);
+                if (!normalizeLoadedMail(mail)) {
+                    LOGGER.warn("[yzt_super] mail.json 第 {} 条记录无效，已跳过", i + 1);
+                    continue;
                 }
+                if (expired(mail.createdAt, now, days)) continue;
+                if (byId(mail.id) != null) mail.id = null;
+                add(mail);
+            } catch (RuntimeException ex) {
+                LOGGER.warn("[yzt_super] mail.json 第 {} 条记录无法读取，已跳过：{}", i + 1, ex.toString());
             }
         }
-        pruneExpired(System.currentTimeMillis());
     }
 
     /** 兼容历史大小写差异，并隔离字段缺失或损坏的单条记录。 */
@@ -80,27 +70,18 @@ public final class MailStore {
     }
 
     public void save() throws IOException {
-        pruneExpired(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        int days = AuthConfig.mailExpireDays();
         JsonObject root = new JsonObject();
         root.addProperty("version", 1);
         JsonArray arr = new JsonArray();
-        for (Mail m : mails) arr.add(GSON.toJsonTree(m));
+        for (Mail m : mails) {
+            if (!expired(m.createdAt, now, days)) arr.add(GSON.toJsonTree(m));
+        }
         root.add("mails", arr);
 
-        Path parent = file.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, GSON.toJson(root), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        if (Files.exists(file)) {
-            Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
-                    StandardCopyOption.REPLACE_EXISTING);
-        }
-        try {
-            Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-        }
+        file.save(GSON, root);
+        mails.removeIf(m -> expired(m.createdAt, now, days));
     }
 
     /** 丢弃超期条目；先判超期，避免把过期条目算进配额。 */
@@ -124,6 +105,20 @@ public final class MailStore {
 
     public boolean remove(String id) {
         return mails.removeIf(m -> m.id != null && m.id.equals(id));
+    }
+
+    public boolean removeAndSave(String id) throws IOException {
+        Mail mail = byId(id);
+        if (mail == null) return false;
+        int index = mails.indexOf(mail);
+        mails.remove(index);
+        try {
+            save();
+        } catch (IOException ex) {
+            mails.add(index, mail);
+            throw ex;
+        }
+        return true;
     }
 
     public List<Mail> all() {

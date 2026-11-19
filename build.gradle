@@ -12,9 +12,11 @@ base {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
 }
+
+evaluationDependsOn(':common')
+def commonMain = project(':common').extensions.getByType(SourceSetContainer).named('main')
 
 minecraft {
     mappings channel: mapping_channel, version: mapping_version
@@ -23,7 +25,12 @@ minecraft {
         configureEach {
             workingDirectory project.file('run')
             property 'forge.logging.console.level', 'debug'
-            mods { "${mod_id}" { source sourceSets.main } }
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                    source commonMain.get()
+                }
+            }
         }
         client { property 'forge.enabledGameTestNamespaces', mod_id }
         server { property 'forge.enabledGameTestNamespaces', mod_id; args '--nogui' }
@@ -51,13 +58,12 @@ tasks.register('selfTest', JavaExec) {
 }
 
 repositories {
-    maven { url = 'https://maven.aliyun.com/repository/central' }
-    maven { url = 'https://maven.aliyun.com/repository/public' }
     maven { url = 'https://libraries.minecraft.net/' }
     mavenCentral()
 }
 
 dependencies {
+    implementation project(':common')
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     implementation 'com.google.code.gson:gson:2.10.1'
 }
@@ -88,6 +94,9 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
+    archiveClassifier = "mc${minecraft_version}-forge"
+    dependsOn ':common:classes'
+    from { commonMain.get().output }
     manifest {
         attributes([
                 'Specification-Title'   : mod_id,
@@ -98,5 +107,25 @@ tasks.named('jar', Jar).configure {
     }
     finalizedBy 'reobfJar'
 }
+
+def forgeArchive = tasks.named('jar', Jar).flatMap { it.archiveFile }
+tasks.register('verifyForgeJar') {
+    group = 'verification'
+    description = '检查 Forge 发行包是否包含全部公共类'
+    dependsOn 'reobfJar'
+    inputs.file forgeArchive
+    doLast {
+        def classes = commonMain.get().output.classesDirs.asFileTree.matching { include '**/*.class' }
+        if (classes.isEmpty()) throw new GradleException('公共模块没有编译输出')
+        new java.util.zip.ZipFile(forgeArchive.get().asFile).withCloseable { archive ->
+            classes.visit { entry ->
+                if (!entry.directory && archive.getEntry(entry.relativePath.pathString) == null) {
+                    throw new GradleException("Forge 发行包缺少 ${entry.relativePath}")
+                }
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyForgeJar' }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+// 两个平台可能同时使用不同 Gradle/JDK 执行 clean，公共源码的输出也按构建隔离。
+layout.buildDirectory = rootProject.layout.buildDirectory.dir('common')
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}

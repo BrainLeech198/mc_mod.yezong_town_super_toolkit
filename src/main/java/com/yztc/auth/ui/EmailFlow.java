@@ -22,8 +22,12 @@ public final class EmailFlow {
 
     /** 绑定或改绑：地址格式不合法直接拒绝；否则按「是否已绑定」分流到直连绑定或验证链。 */
     public static void apply(ServerPlayer p, AuthManager auth, String addr) {
+        applyCommand(p, auth, addr);
+    }
+
+    public static int applyCommand(ServerPlayer p, AuthManager auth, String addr) {
         String a = addr == null ? "" : addr.trim();
-        if (!Emails.looksValid(a)) { p.sendSystemMessage(Lang.msg("email_bad")); return; }
+        if (!Emails.looksValid(a)) { p.sendSystemMessage(Lang.msg("email_bad")); return 0; }
         switch (auth.bindEmail(p, a)) {
             case SET -> {
                 p.sendSystemMessage(Lang.msg("email_set"));
@@ -36,6 +40,7 @@ public final class EmailFlow {
             case SAVE_FAILED -> {
                 p.sendSystemMessage(Lang.msg("auth_storage_error"));
                 Sounds.fail(p);
+                return 0;
             }
             case ALREADY_SET -> change(p, auth, a);
             default -> {
@@ -43,6 +48,7 @@ public final class EmailFlow {
                 Sounds.fail(p);
             }
         }
+        return 1;
     }
 
     /** 改绑验证链：铁砧① 旧邮箱 → 铁砧② 账户密码 → 一致才把邮箱改成 {@code newAddr}。 */
