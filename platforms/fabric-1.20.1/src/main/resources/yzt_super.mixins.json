@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.yztc.auth.fabric.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "yzt_super.refmap.json",
+  "mixins": [
+    "CommandsMixin",
+    "ContainerMenuMixin",
+    "CreativeSlotMixin",
+    "ItemEntityMixin",
+    "PlayerDisplayNameMixin",
+    "PlayerListMixin",
+    "ServerPlayerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

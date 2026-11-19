@@ -2,6 +2,7 @@ package com.yztc.auth.ui;
 
 import com.yztc.auth.lang.Lang;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -57,6 +58,7 @@ public final class AnvilInput {
         Sounds.prompt(player);
         player.openMenu(new SimpleMenuProvider(
                 (id, inv, p) -> new CaptureAnvilMenu(id, inv, session, player), title));
+        if (player.containerMenu instanceof CaptureAnvilMenu menu) menu.refreshSubmitButton();
     }
 
     @FunctionalInterface
@@ -140,6 +142,7 @@ public final class AnvilInput {
         private String last;
         private boolean completed;
         private boolean submitting;
+        private boolean refreshQueued;
 
         private CaptureAnvilMenu(int id, Inventory inv, Session session, ServerPlayer owner) {
             super(id, inv, ContainerLevelAccess.NULL);
@@ -160,7 +163,26 @@ public final class AnvilInput {
                 ItemStack input = getSlot(INPUT_SLOT).getItem();
                 if (!input.isEmpty()) input.setHoverName(Component.literal(name));
             }
+            refreshSubmitButton();
             return changed;
+        }
+
+        @Override
+        public void sendAllDataToRemote() {
+            super.sendAllDataToRemote();
+            refreshSubmitButton();
+        }
+
+        // 原版在本地收到左槽或编辑名称时会重算铁砧配方，可能清空不属于配方的提交按钮。
+        // 输入同步完成后只重发右槽，避免重设文本光标或再次触发重命名包。
+        private void refreshSubmitButton() {
+            if (refreshQueued || owner == null || owner.containerMenu != this) return;
+            refreshQueued = true;
+            Defer.nextTick(owner, () -> {
+                refreshQueued = false;
+                owner.connection.send(new ClientboundContainerSetSlotPacket(containerId,
+                        incrementStateId(), RESULT_SLOT, getSlot(RESULT_SLOT).getItem()));
+            });
         }
 
         /** Result slot is a submit button, not a renamed item. */

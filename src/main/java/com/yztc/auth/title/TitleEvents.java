@@ -17,41 +17,47 @@ public final class TitleEvents {
     public static void onChat(ServerChatEvent e) {
         ServerPlayer p = e.getPlayer();
         TitleStore store = StoreHolder.titles();
-        if (store == null || !TitleService.shouldShowTitle(authed(p), store.selectedOf(key(p)))) return;
+        String selected = visibleTitle(p, store);
+        if (selected == null) return;
         Map<String, TitleDef> defs = store.definitions();
         e.setMessage(TitleService.formatChat(p.getGameProfile().getName(),
-                store.selectedOf(key(p)), defs, e.getRawText()));
+                selected, defs, e.getRawText()));
     }
 
     @SubscribeEvent
     public static void onNameFormat(PlayerEvent.NameFormat e) {
         if (!(e.getEntity() instanceof ServerPlayer p)) return;
         TitleStore store = StoreHolder.titles();
-        if (store == null || !TitleService.shouldShowTitle(authed(p), store.selectedOf(key(p)))) return;
+        String selected = visibleTitle(p, store);
+        if (selected == null) return;
         e.setDisplayname(TitleService.formatDisplay(p.getGameProfile().getName(),
-                store.selectedOf(key(p)), store.definitions()));
+                selected, store.definitions()));
     }
 
     @SubscribeEvent
     public static void onTabList(PlayerEvent.TabListNameFormat e) {
         if (!(e.getEntity() instanceof ServerPlayer p)) return;
         TitleStore store = StoreHolder.titles();
-        if (store == null || !TitleService.shouldShowTitle(authed(p), store.selectedOf(key(p)))) return;
+        String selected = visibleTitle(p, store);
+        if (selected == null) return;
         e.setDisplayName(TitleService.formatDisplay(p.getGameProfile().getName(),
-                store.selectedOf(key(p)), store.definitions()));
+                selected, store.definitions()));
     }
 
-    /** 称号变更/登录后重发玩家信息包，让 Tab 与头顶名立即刷新。 */
+    /** 重算 Forge 缓存的显示名，并向在线观察者同步已认证玩家的 Tab 名称变更。 */
     public static void refreshDisplay(ServerPlayer p) {
-        if (p == null || p.server == null) return;
-        p.server.getPlayerList().sendAllPlayerInfo(p);
+        if (p == null || p.server == null || !authed(p)) return;
+        p.refreshDisplayName();
+        p.refreshTabListName();
     }
 
     private static boolean authed(ServerPlayer p) {
         return AuthHolder.AUTH != null && AuthHolder.AUTH.isAuthenticated(p);
     }
 
-    private static String key(ServerPlayer p) {
-        return TitleService.normalizeName(p.getGameProfile().getName());
+    private static String visibleTitle(ServerPlayer p, TitleStore store) {
+        if (store == null) return null;
+        String selected = store.selectedOf(TitleService.normalizeName(p.getGameProfile().getName()));
+        return TitleService.shouldShowTitle(authed(p), selected) && store.def(selected) != null ? selected : null;
     }
 }

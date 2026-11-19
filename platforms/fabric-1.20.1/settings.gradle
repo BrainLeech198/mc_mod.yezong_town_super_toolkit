@@ -1,0 +1,10 @@
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+rootProject.name = 'yzt_super_fabric_1_20_1'
+include 'common'
+project(':common').projectDir = file('../../common')

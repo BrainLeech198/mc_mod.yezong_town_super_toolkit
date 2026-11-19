@@ -182,6 +182,7 @@ public final class TitleCommand {
             else store.definitions().put(id, previous);
             return 0;
         }
+        refreshWearers(src, store, id);
         src.sendSuccess(() -> Lang.msg("title_defined", id), true);
         return 1;
     }
@@ -195,6 +196,7 @@ public final class TitleCommand {
             if (previous != null) store.definitions().put(id, previous);
             return 0;
         }
+        refreshWearers(src, store, id);
         src.sendSuccess(() -> Lang.msg("title_undefined", id), true);
         return 1;
     }
@@ -222,7 +224,14 @@ public final class TitleCommand {
         return out;
     }
 
-    /** give/take 目标若在线，重发其玩家信息包刷新 Tab/头顶名。 */
+    private static void refreshWearers(CommandSourceStack src, TitleStore store, String id) {
+        for (ServerPlayer player : src.getServer().getPlayerList().getPlayers()) {
+            String name = TitleService.normalizeName(player.getGameProfile().getName());
+            if (id.equals(store.selectedOf(name))) TitleEvents.refreshDisplay(player);
+        }
+    }
+
+    /** give/take 的目标在线时同步称号。 */
     private static void refreshIfOnline(CommandSourceStack src, String normalized) {
         if (src.getServer() == null) return;
         for (ServerPlayer v : src.getServer().getPlayerList().getPlayers()) {
