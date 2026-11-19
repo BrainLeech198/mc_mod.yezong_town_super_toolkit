@@ -3,7 +3,7 @@ build/
 run/
 run-data/
 prodserver/
-META-INF/
+/META-INF/
 *.log
 logs/
 .superpowers/
