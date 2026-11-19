@@ -7,3 +7,8 @@ META-INF/
 *.log
 logs/
 .superpowers/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example

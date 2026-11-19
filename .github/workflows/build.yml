@@ -38,6 +38,8 @@ jobs:
       - name: Build and verify final package
         working-directory: ${{ matrix.directory }}
         run: ./gradlew ${{ matrix.tasks }} --no-daemon --console=plain
+      - name: Check public distribution contents
+        run: python3 scripts/verify_package.py --platform ${{ matrix.platform }} --directory ${{ matrix.directory }}/build/libs
       - name: Record package source
         working-directory: ${{ matrix.directory }}/build/libs
         env:

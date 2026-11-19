@@ -97,6 +97,7 @@ tasks.named('jar', Jar).configure {
     archiveClassifier = "mc${minecraft_version}-forge"
     dependsOn ':common:classes'
     from { commonMain.get().output }
+    from('LICENSE') { into 'META-INF'; rename { 'LICENSE-yzt_super.txt' } }
     manifest {
         attributes([
                 'Specification-Title'   : mod_id,
