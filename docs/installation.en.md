@@ -11,7 +11,7 @@ Install the toolkit on the **server only**. Players use a vanilla Minecraft 1.20
 | 1.20.1 | Forge 47.4.0 | 17 | No Fabric libraries |
 | 1.20.1 | Fabric Loader 0.20.1 | 17 | Fabric API 0.92.12+1.20.1 and Forge Config API Port 8.0.3, Fabric edition |
 
-Get stable files from [GitHub Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases/latest). The filename identifies the platform: `yzt_super-<version>-mc1.20.1-forge.jar` or `yzt_super-<version>-mc1.20.1-fabric.jar`. Do not install both. PR workflow artifacts are candidates and are separate from stable releases. The current 1.4.1 branch is a candidate; it is not yet a new public release or a CurseForge listing.
+Get stable files from [GitHub Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases/latest). The filename identifies the platform: `yzt_super-<version>-mc1.20.1-forge.jar` or `yzt_super-<version>-mc1.20.1-fabric.jar`. Do not install both. PR workflow artifacts are candidates and are separate from stable releases. Version 1.4.0 remains the latest stable release; the 1.4.1 branch is still a candidate. The CurseForge project and its 1.4.0 files are under moderation review and are not publicly downloadable yet.
 
 ## New installation
 

@@ -21,7 +21,7 @@ Server-side account login, private mail, player utilities and administration for
 | 1.20.1 | Forge 47.4.0 | 17 |
 | 1.20.1 | Fabric Loader 0.20.1, Fabric API 0.92.12+1.20.1, Forge Config API Port 8.0.3 | 17 |
 
-NeoForge and other Minecraft versions are not currently delivered. The stable release is 1.4.0; this branch's 1.4.1 is a distribution-cleanup candidate, not a new public release or a published CurseForge project.
+NeoForge and other Minecraft versions are not currently delivered. The stable release is 1.4.0; this branch's 1.4.1 is a distribution-cleanup candidate, not a new public release. The CurseForge project and its v1.4.0 Forge/Fabric files are under review and are not publicly downloadable until approval.
 
 ## Install
 
