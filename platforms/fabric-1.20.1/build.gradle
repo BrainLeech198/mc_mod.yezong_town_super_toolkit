@@ -53,7 +53,10 @@ tasks.named('processResources') {
     from(sharedResources) { include 'assets/**', 'logo.png' }
     def metadata = [
             version: project.version, game: minecraft_version, loader: loader_version,
-            api: fabric_api_version, configPort: forge_config_port_version
+            api: fabric_api_version, configPort: forge_config_port_version,
+            description: groovy.json.JsonOutput.toJson(rootProperties.mod_description),
+            authors: groovy.json.JsonOutput.toJson(rootProperties.mod_authors.split(',').collect { it.trim() }),
+            license: groovy.json.JsonOutput.toJson(rootProperties.mod_license)
     ]
     inputs.properties(metadata)
     filesMatching('fabric.mod.json') { expand(metadata) }
@@ -72,6 +75,7 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('jar') {
     dependsOn ':common:classes'
     from { project(':common').extensions.getByType(SourceSetContainer).main.output }
+    from('../../LICENSE') { into 'META-INF'; rename { 'LICENSE-yzt_super.txt' } }
 }
 
 tasks.named('remapJar') {

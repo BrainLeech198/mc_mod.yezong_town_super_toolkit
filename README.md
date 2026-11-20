@@ -1,6 +1,10 @@
-# 野粽乡超级工具箱
+# Yezong Town Super Toolkit
 
-**Yezong Town Super Toolkit** 是面向 Minecraft 服务器的实用工具 Mod，面向 **Minecraft 1.20.1**，Forge 和 Fabric 分别打包。它把登录注册、留言、玩家常用入口和管理员工具集中到一个服务端 Mod 中，并尽量用清楚的提示带玩家完成操作。
+**野粽乡超级工具箱**：Minecraft 1.20.1 的服务端账户与玩家工具，分别提供 Forge、Fabric 安装包。玩家使用原版客户端，无需安装本 Mod。
+
+[English](README.en.md) · [下载稳定版](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases/latest) · [安装与配置](DEPLOY.md) · [问题反馈](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/issues)
+
+<img src="assets/branding/icon.png" alt="工具箱示意图标" width="96" height="96">
 
 ![Minecraft 1.20.1](https://img.shields.io/badge/Minecraft-1.20.1-3C8527?logo=minecraft&logoColor=white)
 ![Forge 47](https://img.shields.io/badge/Forge-47-orange)
@@ -34,19 +38,21 @@
 |---|---|---|---|
 | 1.20.1 | Forge 47.4.0 | 17 | 已完成运行验证（独立服、原版客户端及核心功能） |
 | 1.20.1 | Fabric Loader 0.20.1 + Fabric API 0.92.12+1.20.1 + Forge Config API Port 8.0.3 | 17 | 已完成运行验证（独立服、原版客户端及核心功能） |
-| 1.21.1 | NeoForge 21.1.267 | 21 | 计划支持（后续候选） |
 
-矩阵按具体组合记录状态。两端均使用游戏 Java 17，玩家可用原版客户端。正在移植的组合标为“正在适配”，只通过打包的组合标为“构建通过、待运行验证”。1.4.0 已分别交付 Forge、Fabric 包，见[发行说明与校验值](docs/releases/1.4.0.md)；各项操作、历史验证包哈希、待实测场景与后续计划见记录。[平台验收记录](docs/平台验收.md) · [架构与候选组合](docs/兼容性审计.md) · [可信代理地址](docs/代理IP适配.md)
+只把已交付的平台列在支持表中；NeoForge 和其他 Minecraft 版本尚未交付，候选方案见[兼容性审计](docs/兼容性审计.md)。当前稳定版为 1.4.0，本分支的 1.4.1 是公开发行整理候选，尚未正式发行。CurseForge 项目及 v1.4.0 Forge/Fabric 文件已提交审核，审核通过前不会公开下载。[发行说明与校验值](docs/releases/1.4.0.md) · [平台验收及待测场景](docs/平台验收.md)
 
 ## 安装
 
 ### 获取 Mod
 
-发行包及 SHA-256 校验文件从仓库的 [Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases) 获取。按服务端加载器选择 `yzt_super-1.4.0-mc1.20.1-forge.jar` 或 `yzt_super-1.4.0-mc1.20.1-fabric.jar`，每次只安装其中一个；Fabric 必需依赖见上表。也可按下面步骤从源码构建。
+发行包及 SHA-256 校验文件从仓库的 [Releases](https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/releases) 获取。按服务端加载器选择 `yzt_super-1.4.0-mc1.20.1-forge.jar` 或 `yzt_super-1.4.0-mc1.20.1-fabric.jar`，每次只安装其中一个；Fabric 必需依赖见上表。开发者构建命令见[部署说明](DEPLOY.md#2-构建)。
 
-### 从源码构建
+### 快速安装
 
-Forge 使用 JDK 17，在根目录执行 `./gradlew clean selfTest build`。Fabric 使用 JDK 25 构建，在 `platforms/fabric-1.20.1/` 执行 `./gradlew clean build`，产物目标 Java 17。Windows PowerShell 使用 `.\gradlew.bat`。选择与加载器对应的 JAR，文件名含 Mod 版本、Minecraft 版本和加载器名。依赖、输出路径、SAuth 迁移和回滚操作见[部署说明](DEPLOY.md)。
+1. 停止服务器；已有世界先备份世界、配置与 `mods/`。
+2. 将与服务端加载器匹配的一个工具箱 JAR 放进 `mods/`，移除旧工具箱包。Fabric 另装上表中的两个必需依赖。
+3. 启动服务器，检查日志；世界配置位于 `<世界>/serverconfig/yzt_super-server.toml`。
+4. 以原版 1.20.1 客户端连接。全新服务器无需执行 SAuth 迁移；已有登录 Mod 时先按[迁移说明](DEPLOY.md)处理命令与数据冲突。
 
 ## 进入服务器后
 
@@ -62,29 +68,30 @@ Forge 使用 JDK 17，在根目录执行 `./gradlew clean selfTest build`。Fabr
 - 账号数据保存在服务端 `config/yzt_super/users.json`；新密码以 PBKDF2 哈希保存，不保存明文密码。迁移来的旧哈希会在首次成功登录后升级。
 - 留言、位置与风险记录分别写入服务端配置目录下的 JSON 文件；升级或迁移前应备份 `config/`。
 - 审计记录用于记录认证结果，不应包含密码。危险操作记录也不保存明文密码。
+- 邮箱、IP、留言及位置是服务器本地可读数据；默认的登录通知会向在线管理员显示玩家名和 IP。存储、可见性与保留方式见[数据与隐私说明](PRIVACY.md)。
 - 离线模式的 Minecraft 连接没有传输加密；这不是本 Mod 能解决的问题。公网部署请理解此限制，并采用符合服务器需求的网络与账号保护方案。
 
 ## 文档导航
 
-- [当前交接状态与下一步](docs/交接说明.md)
-- [提交与多人协作规范](CONTRIBUTING.md)
-- [发布操作规范与模板](docs/发布规范.md)
 - [部署、命令、配置与迁移](DEPLOY.md)
-- [项目文档入口与维护规范](docs/README.md)
-- [项目结构与主要调用链](docs/项目结构.md)
-- [Codex 协作指南](docs/Codex协作指南.md)
-- [主流 Mod 功能对照与路线图](docs/功能路线图.md)
+- [English installation guide](docs/installation.en.md)
+- [数据与隐私](PRIVACY.md)
 - [代理客户端地址适配](docs/代理IP适配.md)
-- [版本管理规范](docs/版本管理规范.md)
 - [更新记录](CHANGELOG.md)
 - [问题记录](docs/issues/)
+- [开发与维护文档](docs/README.md)
+- [CurseForge 投稿准备与平台评估](docs/平台发布.md)
 
 ## 参与协作
 
 欢迎提交可复现的问题报告和改进建议。报告问题时请写明 Minecraft 和加载器版本、操作步骤、预期结果与实际结果；分享日志前请删除 IP、账号数据、令牌等隐私信息。
 
-新协作者先读 [交接说明](docs/交接说明.md) 和 [提交与协作规范](CONTRIBUTING.md)，直接在原仓库工作分支协作，无需另建仓库。Codex 的环境准备见 [Codex 协作指南](docs/Codex协作指南.md)，仓库内 AI 工作规则见 [AGENTS.md](AGENTS.md)。Mod 版本按 [版本管理规范](docs/版本管理规范.md) 维护，发行按 [发布规范](docs/发布规范.md) 执行。
+开发者从 [CONTRIBUTING.md](CONTRIBUTING.md) 开始；构建、交接和 AI 工作规则集中在[维护文档](docs/README.md)。
+
+## 开发来源
+
+本项目主要源码由 Codex 等 AI 工具生成，文档、翻译和工具箱矢量图标也有 AI 参与。运行 Mod 不需要 AI 服务。来源披露不替代测试与安全审查，详见 [PROVENANCE.md](PROVENANCE.md)。
 
 ## 许可证
 
-当前项目配置标记为 **All Rights Reserved**。公开仓库便于查看与协作，不代表源码可不受限制地重新发布或商用；使用与再分发请遵循仓库的权利声明，并联系维护者确认授权。
+当前采用 [All Rights Reserved](LICENSE)，没有改为开源许可证；重新分发或修改授权请联系维护者。第三方依赖保留各自许可，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

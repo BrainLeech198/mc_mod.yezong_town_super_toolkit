@@ -1,16 +1,16 @@
 # 野粽乡超级工具箱（yzt_super）部署与切换说明
 
-用于把在用的 SAuth-2.0.0 换成本 mod。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；目标 mod id：`yzt_super`，当前源码版本为 `1.4.0`，各平台的可用性见[兼容矩阵](README.md#适用范围)。
+适用于全新安装、升级和可选的 SAuth 数据迁移。Mod 名称：**野粽乡超级工具箱**（Yezong Town Super Toolkit）；mod id：`yzt_super`。本分支源码为 `1.4.1` 候选，当前稳定发行版为 `1.4.0`；各平台的可用性见[兼容矩阵](README.md#适用范围)。
 
 ## 1. 迁移前备份
 
 按既有清单备份，重点三项：
 
 - `world/`（含 `world/serverconfig/`）
-- `config/`（尤其 `config/serverreg/users.json` —— SAuth 用户库，迁移数据源）
+- `config/`（工具箱数据在 `config/yzt_super/`；仅 SAuth 迁移还需备份 `config/serverreg/users.json`）
 - `mods/`
 
-`config/serverreg/users.json` 建议单独复制一份带日期的副本。迁移过程只读它，不写、不删。
+全新安装没有旧数据时可跳过旧库备份。若从 SAuth 迁移，建议将其用户库另存带日期的副本；迁移只读旧库，不写、不删。
 
 ## 2. 构建
 
@@ -18,8 +18,8 @@
 
 | 游戏 / 加载器 | 构建目录与工具链 | 命令 | 产物（相对于该目录） |
 |---|---|---|---|
-| 1.20.1 / Forge 47.4.0 | 根目录，JDK 17、Gradle 8.14.4、ForgeGradle 6.0.54 | `.\gradlew.bat clean selfTest build --no-daemon` | `build/libs/yzt_super-1.4.0-mc1.20.1-forge.jar` |
-| 1.20.1 / Fabric Loader 0.20.1 | `platforms/fabric-1.20.1/`，JDK 25、Gradle 9.8.2、Loom 1.19.4 | `.\gradlew.bat clean build --no-daemon` | `build/libs/yzt_super-1.4.0-mc1.20.1-fabric.jar` |
+| 1.20.1 / Forge 47.4.0 | 根目录，JDK 17、Gradle 8.14.4、ForgeGradle 6.0.54 | `.\gradlew.bat clean selfTest build --no-daemon` | `build/libs/yzt_super-1.4.1-mc1.20.1-forge.jar` |
+| 1.20.1 / Fabric Loader 0.20.1 | `platforms/fabric-1.20.1/`，JDK 25、Gradle 9.8.2、Loom 1.19.4 | `.\gradlew.bat clean build --no-daemon` | `build/libs/yzt_super-1.4.1-mc1.20.1-fabric.jar` |
 
 两个服务端都使用 Java 17。Fabric 服务端的 `mods/` 另放 **Fabric API 0.92.12+1.20.1** 和 **Forge Config API Port 8.0.3（Fabric 版）**。配置库让两端共用同一组 TOML 键与世界级配置。Forge 版使用 Forge 自带配置系统。现有保存、迁移和备份路径见下文。每次只装一个工具箱 JAR，替换前停服并取出历史的 `yzt_super-1.3.4.jar`。[Fabric API](https://modrinth.com/mod/fabric-api) · [Forge Config API Port](https://github.com/Fuzss/forge-config-api-port/tree/1.20.1)
 
@@ -27,15 +27,17 @@
 
 ## 3. 替换
 
-1. 从 `mods/` 移除 `SAuth-2.0.0.jar`（务必移除：本 mod 的裸指令 `/login` `/register` 与 SAuth 冲突）。
+1. 升级时从 `mods/` 移除旧工具箱包；若安装了 SAuth，也需移除其 JAR，本 Mod 的裸指令 `/login` `/register` 会与之冲突。
 2. 按上表选对应平台的 JAR 放入 `mods/`。
-3. **保留** `config/serverreg/users.json` 原位不动（迁移要读它）。
+3. 仅在 SAuth 迁移时保留 `config/serverreg/users.json` 原位不动；全新安装不需要这个文件。
 4. 若在用其它登录类 mod，先确认不会与本 mod 抢同名裸指令。
 
 服务端安装使用 Forge 的 `displayTest="IGNORE_SERVER_VERSION"` 或 Fabric 的 `environment="server"`：**玩家无需在客户端安装本 mod**，原版客户端即可进服。
 原版客户端显示服务端提供的兜底文本（见 §6 `language`）。
 
 ## 4. 首次启动与迁移
+
+全新安装直接启动并连接服务器，按注册/登录提示操作即可。以下命令仅用于已有 SAuth 数据的服务器。
 
 启动服务器，然后**从控制台**执行：
 

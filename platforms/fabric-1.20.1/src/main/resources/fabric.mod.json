@@ -3,9 +3,14 @@
   "id": "yzt_super",
   "version": "${version}",
   "name": "野粽乡超级工具箱",
-  "description": "服务端登录认证、全服闸门、玩家工具和管理员工具。",
-  "authors": ["BrainLeech198"],
-  "license": "All Rights Reserved",
+  "description": ${description},
+  "authors": ${authors},
+  "license": ${license},
+  "contact": {
+    "homepage": "https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit",
+    "sources": "https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit",
+    "issues": "https://github.com/BrainLeech198/mc_mod.yezong_town_super_toolkit/issues"
+  },
   "icon": "logo.png",
   "environment": "server",
   "entrypoints": {
